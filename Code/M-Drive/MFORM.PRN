@@ -1,0 +1,463 @@
+
+
+                ;
+                ;	Disassembled by:
+                ;		DASMx object code disassembler
+                ;		(c) Copyright 1996-2003   Conquest Consultants
+                ;		Version 1.40 (Oct 18 2003)
+                ;
+                ;	File:		mform.com
+                ;
+                ;	Size:		768 bytes
+                ;	Checksum:	EC78
+                ;	CRC-32:		151F475F
+                ;
+                ;	Date:		Tue Apr 18 11:13:04 2023
+                ;
+                ;	CPU:		Intel 8080 (MCS-80/85 family)
+                ;
+                ;
+                ;
+ 0080 =         secsize		equ	128				;Size of sector in bytes
+ 0010 =         hmdsib		equ	2048/secsize	;Sectors in memory drive data block
+ 00FE =         hmddsm		equ	((512-4)*8)/hmdsib
+ 0080 =         mdriveh		equ	80h				;M-Drive/H
+                
+ 0000           dph			org	0
+ 0000           			ds	2				;sector translate table vec
+ 0002           			ds	6				;scratch
+ 0008           			ds	2				;directory buffer
+ 000A           dph$dpb		ds	2				;DPB block vec
+ 000C           			ds	2				;checksum vec
+ 000E           			ds	2				;allocation vec
+ 000A =         o$dpbtbl	equ		dph$dpb-dph	;Offset to DPB in DPH
+                
+ 0000           dpb			org	0
+ 0000           mdrive$type	ds	1				;mdrive type
+ 0001           			ds	1				;sectors per track
+ 0002           			ds	3				;bsh, blm, exm
+ 0005           			ds	2		;Reserved dir blocks, ents
+ 0007           			ds	2
+ 0009           			ds	2				;check sum vector
+ 000B           			ds	2				;# of reserved tracks for parity check
+                
+ 0000 =         warm$boot	equ		0000h
+ 0005 =         bdos		equ		0005h
+ 0080 =         DMABUF		equ		0080h
+                
+                ;BIOS Offsets
+ 0000 =         CBOOT		equ		0000h
+ 0003 =         WBOOT		equ		cboot+03h
+ 0006 =         IOCONST		equ		cboot+06h
+ 0009 =         IOCONIN		equ		cboot+09h
+ 000C =         IOCONOUT	equ		cboot+0Ch
+ 000F =         IOLIST		equ		cboot+0fh
+ 0012 =         IOPUNCH		equ		cboot+12h
+ 0015 =         IOREADER	equ		cboot+15h
+ 0018 =         HOME		equ		cboot+18h
+ 001B =         SELDSK		equ		cboot+1Bh
+ 001E =         SETTRK		equ		cboot+1Eh
+ 0021 =         SETSEC		equ		cboot+21h
+ 0024 =         SETDMA		equ		cboot+24h
+ 0027 =         READ		equ		cboot+27h
+ 002A =         WRITE		equ		cboot+2Ah
+ 002D =         IOLISTST	equ		cboot+2Dh
+                
+ 0100           	org	00100H
+                ;
+                begin:
+ 0100 312D04    	lxi		sp,STACK
+ 0103 218000    	lxi		h,DMABUF
+ 0106 4E        	mov		c,m			;C=byte count
+                scan:
+ 0107 23        	inx		h
+ 0108 0D        	dcr		c
+ 0109 FAE102    	jm		WHT$DRV		;No more args, report error
+ 010C 7E        	mov		a,m			;Fetch byte from buffer
+ 010D FE20      	cpi		' '			;Skip blanks
+ 010F CA0701    	jz		scan
+ 0112 FE24      	cpi		'$'			;End of buffer?
+ 0114 CAE102    	jz		WHT$DRV		;Yes, report error
+ 0117 E65F      	ani		05FH		;Force upper-case
+ 0119 D641      	sui		'A'			;Convert from ASCII to binary
+ 011B FE10      	cpi		010H		;Too large?
+ 011D D2DB02    	jnc		INV$DRV		;Yes, report error
+ 0120 32D703    	sta		DRIVE		;Save as DRIVE
+ 0123 23        	inx		h			;Fetch next
+ 0124 7E        	mov		a,m			;Byte from buffer
+ 0125 FE21      	cpi		'!'			;Force format flag?
+ 0127 C4C202    	cnz		ASK$YES		;Nope, Ask for permission.
+                						;Sets FMT$FLAG = -1 if permission="Y"
+ 012A 3AD703    	lda		DRIVE		;Recover DRIVE
+ 012D 4F        	mov		c,a			;Into reg C
+ 012E 3E1B      	mvi		a,SELDSK
+ 0130 CDBD02    	call	DO$BIOS		;BIOS
+                						;Return HL=0 if invalid drive else HL=DPH
+ 0133 7C        	mov		a,h
+ 0134 B5        	ora		l
+ 0135 CAE702    	jz		NOT$MDRV	;Invalid DRIVE selected
+ 0138 010A00    	lxi		b,o$dpbtbl
+ 013B 09        	dad		b			;HL=ptr to DPB in DPH
+ 013C 7E        	mov		a,m
+ 013D 23        	inx		h
+ 013E 66        	mov		h,m
+ 013F 6F        	mov		l,a			;HL=ptr to DPB
+ 0140 2B        	dcx		h			;HL=ptr to mdrive$type
+ 0141 7E        	mov		a,m			;Fetch M-Drive type flag
+ 0142 FE80      	cpi		mdriveh		;Is this hardware M-Drive?
+ 0144 DAE702    	jc		NOT$MDRV	;Nope
+ 0147 E5        	push	h			;Save ptr to mdrive$type
+ 0148 3ADA02    	lda		FMT$FLAG
+ 014B B7        	ora		a			;A= -1 if allowed to format drive
+ 014C C28F01    	jnz		FMT$MDRIVE	;Start unconditional drive format
+ 014F C35501    	jmp		CHK$MDRIVE	;Test if drive is formatted
+                ;
+                ; M-Drive formatted signature
+                ;
+                SIGNATURE:
+ 0152 4C        	db	04CH
+ 0153 4C        	db	04CH
+ 0154 4F        	db	04FH
+ 0003 =         SIG$LEN	equ	$-SIGNATURE
+                ;
+                ; Check if M-Drive is already formatted
+                ;
+                CHK$MDRIVE:
+ 0155 0E00      	mvi		c,000H		;BC=Sector number (0)
+ 0157 3E21      	mvi		a,SETSEC
+ 0159 CDBD02    	call	DO$BIOS		;BIOS
+ 015C 0E03      	mvi		c,003H		;BC=Track number (3)
+ 015E 3E1E      	mvi		a,SETTRK
+ 0160 CDBD02    	call	DO$BIOS		;BIOS
+ 0163 218004    	lxi		h,DATA$BLK	;HL=Data block
+ 0166 22E003    	shld	DMA			;Store address of Data block
+ 0169 44        	mov		b,h
+ 016A 4D        	mov		c,l
+ 016B 3E24      	mvi		a,SETDMA	;BC=DMA buffer address
+ 016D CDBD02    	call	DO$BIOS		;BIOS
+ 0170 3E27      	mvi		a,READ		;Read sector
+ 0172 CDBD02    	call	DO$BIOS		;BIOS
+ 0175 2AE003    	lhld	DMA			;HL=Start of Data block
+ 0178 017D00    	lxi	b,	secsize-SIG$LEN	;0007DH	;BC=Offset
+ 017B 09        	dad	b				;HL=Offset into data block
+ 017C 1E03      	mvi		e,SIG$LEN	;E=Length of SIG
+ 017E 015201    	lxi		b,SIGNATURE	;BC=Drive formatted SIG
+                TEST$SIG:
+ 0181 0A        	ldax	b			;Fetch flag byte from SIG
+ 0182 BE        	cmp		m			;Match signature byte?
+ 0183 C28F01    	jnz		FMT$MDRIVE	;Nope, Safe to format M-Drive
+ 0186 23        	inx		h			;Next byte in Data block
+ 0187 03        	inx		b			;Next byte in SIG
+ 0188 1D        	dcr		e			;Count bytes tested
+ 0189 C28101    	jnz		TEST$SIG	;All done?
+ 018C C3ED02    	jmp		FMT$MDRV	;Report M-Drive is formatted
+                ;
+                ; Begin formatting M-Drive
+                ; by first reading track
+                ;
+                FMT$MDRIVE:
+ 018F 116903    	lxi		d,msg1
+ 0192 CDBE03    	call	print
+ 0195 E1        	pop		h			;Restore ptr to mdrive$type
+ 0196 23        	inx		h			;Now point to DPB: SPT
+ 0197 5E        	mov		e,m			;E=Low byte
+ 0198 23        	inx		h
+ 0199 56        	mov		d,m			;D=High byte
+ 019A EB        	xchg				;HL=SPT
+ 019B 22DC03    	shld	SPT			;Save Sectors Per Track
+ 019E EB        	xchg				;HL=DPB
+ 019F 010600    	lxi		b,00006H	;BC=Offset to DPB:DSM
+ 01A2 09        	dad		b
+ 01A3 5E        	mov		e,m			;E=Low byte DPB:DSM
+ 01A4 23        	inx		h
+ 01A5 56        	mov		d,m			;D=High byte DPB:DSM
+ 01A6 EB        	xchg				;HL=DSM, DE=ptr to DPB:DSM+1
+ 01A7 23        	inx		h			;HL=HL+1
+ 01A8 29        	dad		h			;*2
+ 01A9 29        	dad		h			;*4
+ 01AA 6C        	mov		l,h			;L=Value of H
+ 01AB 2600      	mvi		h,000H		;H=0
+ 01AD 29        	dad		h			;*2
+ 01AE 29        	dad		h			;*4
+ 01AF 29        	dad		h			;*8
+ 01B0 29        	dad		h			;*16
+ 01B1 22D803    	shld	CUR$DBLK	;Save Data block offset (# DIR entries)
+ 01B4 EB        	xchg				;HL=DSM+1
+ 01B5 010500    	lxi		b,00005H	;BC=Offset to DPB:OFFSET
+ 01B8 09        	dad		b
+ 01B9 5E        	mov		e,m			;E=Low byte DPB:OFFSET
+ 01BA 23        	inx		h
+ 01BB 56        	mov		d,m			;D=High byte DPB:OFFSET
+ 01BC EB        	xchg				;HL=DPB:OFFSET, DE=DPB:OFFSET+2
+ 01BD 22DE03    	shld	OFFSET		;Save HL as offset
+ 01C0 EB        	xchg				;HL=DPB:OFFSET+2
+ 01C1 010000    	lxi		b,00000H	;BC=0 (Sector number)
+ 01C4 2AD803    	lhld	CUR$DBLK	;HL=Data block offset
+ 01C7 22DA03    	shld	END$DBLK	;Save as Curent Data block
+ 01CA 218004    	lxi		h,DATA$BLK	;HL=00480H
+ 01CD 22E003    	shld	DMA			;Start of Data block
+                L01D0:
+ 01D0 D5        	push	d			;Save Track number
+ 01D1 C5        	push	b			;Save Sector number
+ 01D2 4B        	mov		c,e
+ 01D3 42        	mov		b,d
+ 01D4 3E1E      	mvi		a,SETTRK	;BC=Track number
+ 01D6 CDBD02    	call	DO$BIOS		;BIOS
+ 01D9 C1        	pop		b			;Restore Sector number
+ 01DA C5        	push	b			;Save Sector number
+ 01DB 3E21      	mvi		a,SETSEC	;BC=Sector number
+ 01DD CDBD02    	call	DO$BIOS		;BIOS
+ 01E0 2AE003    	lhld	DMA			;HL=Start of Data block
+ 01E3 018000    	lxi		b,secsize	;Size of sector
+ 01E6 09        	dad		b			;HL=HL+secsize
+ 01E7 22E003    	shld	DMA			;Save as Data block
+ 01EA 44        	mov		b,h
+ 01EB 4D        	mov		c,l
+ 01EC 3E24      	mvi		a,SETDMA	;BC=DMA BUFFER
+ 01EE CDBD02    	call	DO$BIOS		;BIOS
+ 01F1 3E27      	mvi		a,READ		;READ sector
+ 01F3 CDBD02    	call	DO$BIOS		;BIOS
+ 01F6 C1        	pop		b			;Restore Sector number
+ 01F7 D1        	pop		d			;Restore Track number
+ 01F8 03        	inx		b			;Next Sector
+ 01F9 2ADC03    	lhld	SPT			;Get Sectors Per Track value
+ 01FC 37        	stc					;Set carry flag=1
+ 01FD 7D        	mov		a,l
+ 01FE 99        	sbb		c
+ 01FF 7C        	mov		a,h
+ 0200 98        	sbb		b			;Read Full Track?
+ 0201 D20802    	jnc		L0208		;Nope, contine
+ 0204 010000    	lxi		b,00000H	;Clear Sector number
+ 0207 13        	inx		d			;Next Track
+                L0208:
+ 0208 2ADA03    	lhld	END$DBLK	;Curent Data block
+ 020B 2B        	dcx		h
+ 020C 22DA03    	shld	END$DBLK	;Curent Data block
+ 020F 7C        	mov		a,h
+ 0210 B5        	ora		l			;All Data blocks done?
+ 0211 C2D001    	jnz		L01D0		;Nope, Continue
+                ;
+ 0214 2AD803    	lhld	CUR$DBLK	;HL=Data block offset
+ 0217 29        	dad		h			;*2
+ 0218 29        	dad		h			;*4
+ 0219 44        	mov		b,h
+ 021A 4D        	mov		c,l			;BC=HL
+ 021B 21E004    	lxi		h,DATA$DIR	;004E0H	;HL=Start of Directory Area
+ 021E 112000    	lxi		d,32		;DE=Size of Directory Entry ;00020H
+                L0221:
+ 0221 19        	dad		d
+ 0222 36E5      	mvi		m,0E5H		;Empty sector fill value
+ 0224 0B        	dcx		b
+ 0225 79        	mov		a,c
+ 0226 B0        	ora		b			;BC=0?
+ 0227 C22102    	jnz		L0221		;Nope
+                ;
+ 022A 2ADE03    	lhld	OFFSET
+ 022D EB        	xchg
+ 022E 010000    	lxi		b,00000H	;BC=0
+ 0231 2AD803    	lhld	CUR$DBLK
+ 0234 22DA03    	shld	END$DBLK
+ 0237 218004    	lxi		h,DATA$BLK	;00480H
+ 023A 22E003    	shld	DMA
+                L023D:
+ 023D D5        	push	d			;Save Track number
+ 023E C5        	push	b			;Save Sector number
+ 023F 4B        	mov		c,e
+ 0240 42        	mov		b,d
+ 0241 3E1E      	mvi		a,SETTRK	;BC=Track number 01EH
+ 0243 CDBD02    	call	DO$BIOS		;BIOS
+ 0246 C1        	pop		b			;Restore Sector number
+ 0247 C5        	push	b			;Save Sector number
+ 0248 3E21      	mvi		a,SETSEC	;BC=Sector number 021H
+ 024A CDBD02    	call	DO$BIOS		;BIOS
+ 024D 2AE003    	lhld	DMA
+ 0250 018000    	lxi		b,secsize	;Size of sector
+ 0253 09        	dad		b			;HL=HL+secsize
+ 0254 22E003    	shld	DMA
+ 0257 44        	mov		b,h
+ 0258 4D        	mov		c,l
+ 0259 3E24      	mvi		a,SETDMA	;BC=DMA buffer 024H
+ 025B CDBD02    	call	DO$BIOS
+ 025E 3E2A      	mvi		a,WRITE
+ 0260 CDBD02    	call	DO$BIOS		;BIOS
+ 0263 C1        	pop		b			;Restore Sector number
+ 0264 D1        	pop		d			;Restore Track number
+ 0265 03        	inx		b			;Next Sector
+ 0266 2ADC03    	lhld	SPT			;Get Sectors Per Track value
+ 0269 37        	stc					;Set carry flag=1
+ 026A 7D        	mov		a,l
+ 026B 99        	sbb		c
+ 026C 7C        	mov		a,h
+ 026D 98        	sbb		b
+ 026E D27502    	jnc		L0275		;Write Full Track?
+ 0271 010000    	lxi		b,00000H	;Clear Sector number
+ 0274 13        	inx		d			;Next Track
+                L0275:
+ 0275 2ADA03    	lhld	END$DBLK
+ 0278 2B        	dcx		h
+ 0279 22DA03    	shld	END$DBLK
+ 027C 7C        	mov		a,h
+ 027D B5        	ora		l			;All blocks writen?
+ 027E C23D02    	jnz		L023D		;Nope, continue
+                ;
+                ; Write SIGNATURE block to mark M-Drive formatted
+                ;
+ 0281 0E00      	mvi		c,000H		;Set Sector = 0
+ 0283 3E21      	mvi		a,SETSEC	;BC=Sector number 021H
+ 0285 CDBD02    	call	DO$BIOS		;BIOS
+ 0288 0E03      	mvi		c,003H		;Set Track = 3
+ 028A 3E1E      	mvi		a,SETTRK	;BC=Track number 01EH
+ 028C CDBD02    	call	DO$BIOS
+ 028F 218004    	lxi		h,DATA$BLK	;00480H
+ 0292 22E003    	shld	DMA
+ 0295 44        	mov		b,h
+ 0296 4D        	mov		c,l
+ 0297 3E24      	mvi		a,SETDMA	;BC=DMA buffer 024H
+ 0299 CDBD02    	call	DO$BIOS
+ 029C 3E27      	mvi		a,READ
+ 029E CDBD02    	call	DO$BIOS		;BIOS
+ 02A1 2AE003    	lhld	DMA
+ 02A4 017D00    	lxi		b,secsize-SIG$LEN	;0007DH
+ 02A7 09        	dad		b
+ 02A8 015201    	lxi		b,SIGNATURE
+ 02AB 1E03      	mvi		e,SIG$LEN
+                SET$SIG:
+ 02AD 0A        	ldax	b
+ 02AE 77        	mov		m,a
+ 02AF 23        	inx		h
+ 02B0 03        	inx		b
+ 02B1 1D        	dcr		e
+ 02B2 C2AD02    	jnz		SET$SIG
+ 02B5 3E2A      	mvi		a,WRITE
+ 02B7 CDBD02    	call	DO$BIOS
+ 02BA C3F302    	jmp		EXIT		;Format complete, exit program
+                ;
+                ; Entry: A=BIOS function
+                ;
+                DO$BIOS:
+ 02BD 2A0100    	lhld	warm$boot+1
+ 02C0 6F        	mov		l,a
+ 02C1 E9        	pchl			;INFO: index jump
+                ;
+                ; Ask user to enter "Y" on keyboard
+                ; FMT$FLAG
+                ;   0      User did NOT enter "Y"
+                ;  255     User entered "Y"
+                ;
+                ASK$YES:
+ 02C2 118503    	lxi		d,msg2		;DE=Message
+ 02C5 CDBE03    	call	print		;Print message
+ 02C8 3E09      	mvi		a,IOCONIN	;Read console 009H
+ 02CA CDBD02    	call	DO$BIOS		;BIOS
+ 02CD E6DF      	ani		0DFH		;Force upper-case
+ 02CF FE59      	cpi		'Y'			;Was it expected?
+ 02D1 C2F302    	jnz		EXIT		;No, exit program
+ 02D4 3EFF      	mvi		a,0FFH		;A=255
+ 02D6 32DA02    	sta		FMT$FLAG	;Set FMT$FLAG
+ 02D9 C9        	ret
+                ;
+                FMT$FLAG:
+ 02DA 00        	db	000H			;Default: 00
+                ;
+                ; Report Invalid Drive
+                ;
+                INV$DRV:
+ 02DB 11F602    	lxi		d,err1		;DE=Message
+ 02DE C3F002    	jmp		BAIL		;Print message and exit program
+                ;
+                ; Report No Drive on command line
+                ;
+                WHT$DRV:
+ 02E1 110603    	lxi		d,err2		;DE=Message
+ 02E4 C3F002    	jmp		BAIL		;Print message and exit program
+                ;
+                ; Report No M-Drive support found
+                ;
+                NOT$MDRV:
+ 02E7 111B03    	lxi		d,err3		;DE=Message
+ 02EA C3F002    	jmp		BAIL		;Print message and exit program
+                ;
+                ; Report M-Drive Formatted
+                ;
+                FMT$MDRV:
+ 02ED 114303    	lxi		d,err4		;DE=Message
+                ;
+                ; Print Message (DE), Fall into EXIT
+                ;
+                BAIL:
+ 02F0 CDBE03    	call	print
+                ;
+                ; Exit program
+                ;
+                EXIT:
+ 02F3 C30000    	jmp		0000h		;BIOS: Warm Boot
+                ;
+                err1:
+ 02F6 494E56414C	db	'INVALID DRIVE'
+ 0303 0D0A00    	db	0Dh,0Ah,0
+                err2:
+ 0306 4E4F204452	db	'NO DRIVE SPECIFIED'
+ 0318 0D0A00    	db	0Dh,0Ah,0
+                err3:
+ 031B 4452495645	db	'DRIVE SPECIFIED IS NOT A MEMORY DRIVE'
+ 0340 0D0A00    	db	0Dh,0Ah,0
+                err4:
+ 0343 4D454D4F52	db	'MEMORY DRIVE IS ALREADY FORMATTED!!'
+ 0366 0D0A00    	db	0Dh,0Ah,0
+                msg1:
+ 0369 0D0A      	db	0Dh,0Ah
+ 036B 464F524D41	db	'FORMATTING MEMORY DRIVE'
+ 0382 0A0D00    	db	0Ah,0Dh,0
+                msg2:
+ 0385 434F4E4649	db	'CONFIRM DESTROY ALL FILES ON THE MEMORY DRIVE (Y or N)? '
+ 03BD 00        	db	0
+                ;
+                ; Print null termenited message pointed by DE
+                ;
+                print:
+ 03BE 1A        	ldax	d			;Get character
+ 03BF B7        	ora		a			;Test for null byte
+ 03C0 C8        	rz					;Yes, return
+ 03C1 13        	inx		d			;Point to next character
+ 03C2 CDC803    	call	putchar		;Print to console
+ 03C5 C3BE03    	jmp		print		;Continue
+                ;
+                ; Send character in <A> to console
+                ; Preserve all regs
+                ;
+                putchar:
+ 03C8 F5        	push	psw
+ 03C9 C5        	push	b
+ 03CA D5        	push	d
+ 03CB E5        	push	h
+ 03CC 5F        	mov		e,a
+ 03CD 0E02      	mvi		c,002H		;BDOS function PRINT
+ 03CF CD0500    	call	bdos
+ 03D2 E1        	pop		h
+ 03D3 D1        	pop		d
+ 03D4 C1        	pop		b
+ 03D5 F1        	pop		psw
+ 03D6 C9        	ret
+                ;
+                ; VARS
+                ;
+                DRIVE:
+ 03D7 00        	db	0
+                CUR$DBLK:
+ 03D8 0000      	dw	0
+                END$DBLK:
+ 03DA 0000      	dw	0
+                SPT:
+ 03DC 0000      	dw	0
+                OFFSET:
+ 03DE 0000      	dw	0
+                DMA:
+ 03E0 0000      	dw	0
+ 042D           	org	0042DH
+ 042D =         STACK	equ	$
+ 0480           	org	00480H
+ 0480 =         DATA$BLK	equ	$
+ 04E0           	org	DATA$BLK + 60h
+ 04E0 =         DATA$DIR	equ	$
+ 04E0           	end
+
