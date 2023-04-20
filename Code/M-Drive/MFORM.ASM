@@ -1,21 +1,3 @@
-;
-;	Disassembled by:
-;		DASMx object code disassembler
-;		(c) Copyright 1996-2003   Conquest Consultants
-;		Version 1.40 (Oct 18 2003)
-;
-;	File:		mform.com
-;
-;	Size:		768 bytes
-;	Checksum:	EC78
-;	CRC-32:		151F475F
-;
-;	Date:		Tue Apr 18 11:13:04 2023
-;
-;	CPU:		Intel 8080 (MCS-80/85 family)
-;
-;
-;
 secsize		equ	128				;Size of sector in bytes
 hmdsib		equ	2048/secsize	;Sectors in memory drive data block
 hmddsm		equ	((512-4)*8)/hmdsib
@@ -66,7 +48,13 @@ IOLISTST	equ		cboot+2Dh
 begin:
 	lxi		sp,STACK
 	lxi		h,DMABUF
+	push	h
 	mov		c,m			;C=byte count
+	mvi		b,0
+	inx		h
+	dad		b
+	mvi		m,'$'		;Mark END-OF-BUFFER
+	pop		h
 scan:
 	inx		h
 	dcr		c
@@ -76,7 +64,6 @@ scan:
 	jz		scan
 	cpi		'$'			;End of buffer?
 	jz		WHT$DRV		;Yes, report error
-	ani		05FH		;Force upper-case
 	sui		'A'			;Convert from ASCII to binary
 	cpi		010H		;Too large?
 	jnc		INV$DRV		;Yes, report error
@@ -345,14 +332,18 @@ DO$BIOS:
 ASK$YES:
 	lxi		d,msg2		;DE=Message
 	call	print		;Print message
-	mvi		a,IOCONIN	;Read console 009H
-	call	DO$BIOS		;BIOS
+WAIT:
+	mvi		c,0006H		;BDOS function DIRECT$CONSOLE$I/O
+	mvi		e,0ffH		;Input
+	call	bdos		;A=0 No character
 	ani		0DFH		;Force upper-case
+	jz		WAIT
 	cpi		'Y'			;Was it expected?
 	jnz		EXIT		;No, exit program
 	mvi		a,0FFH		;A=255
 	sta		FMT$FLAG	;Set FMT$FLAG
-	ret
+	lxi		d,crlf
+	jmp		print
 ;
 FMT$FLAG:
 	db	000H			;Default: 00
@@ -392,44 +383,35 @@ EXIT:
 ;
 err1:
 	db	'INVALID DRIVE'
-	db	0Dh,0Ah,0
+	db	0Dh,0Ah,'$'
 err2:
 	db	'NO DRIVE SPECIFIED'
-	db	0Dh,0Ah,0
+	db	0Dh,0Ah,'$'
 err3:
 	db	'DRIVE SPECIFIED IS NOT A MEMORY DRIVE'
-	db	0Dh,0Ah,0
+	db	0Dh,0Ah,'$'
 err4:
 	db	'MEMORY DRIVE IS ALREADY FORMATTED!!'
-	db	0Dh,0Ah,0
+	db	0Dh,0Ah,'$'
 msg1:
 	db	0Dh,0Ah
 	db	'FORMATTING MEMORY DRIVE'
-	db	0Ah,0Dh,0
+	db	0Ah,0Dh,'$'
 msg2:
 	db	'CONFIRM DESTROY ALL FILES ON THE MEMORY DRIVE (Y or N)? '
-	db	0
+	db	'$'
+crlf:
+	db	0Dh,0Ah,'$'
+
 ;
-; Print null termenited message pointed by DE
+; Print termenited message pointed by DE
 ;
 print:
-	ldax	d			;Get character
-	ora		a			;Test for null byte
-	rz					;Yes, return
-	inx		d			;Point to next character
-	call	putchar		;Print to console
-	jmp		print		;Continue
-;
-; Send character in <A> to console
-; Preserve all regs
-;
-putchar:
 	push	psw
 	push	b
 	push	d
 	push	h
-	mov		e,a
-	mvi		c,002H		;BDOS function PRINT
+	mvi		c,009H		;BDOS function PRINT$STRING
 	call	bdos
 	pop		h
 	pop		d
