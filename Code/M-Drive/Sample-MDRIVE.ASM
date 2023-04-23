@@ -18,20 +18,20 @@
 ;
 ;	M - D R I V E / H
 ;
-;	To quickly add this to your exlstlng bios, just replace the "JMP
+;	To quickly add this to your existing bios, just replace the "JMP
 ;	N0THING"s at the end of each routine with a jump to your BIOS,
-;	and assemble lt all together. The DPB is set for one M-DRIVE/H
-;	board, lf you have more boards you will have to adjust it
+;	and assemble it all together. The DPB is set for one M-DRIVE/H
+;	board, if you have more boards you will have to adjust it
 ;	accordingly.
 ;	Information such as sector, track, and DMA address are saved even
-;	lf they are not intended for the memory drive.	Thls is intended
+;	if they are not intended for the memory drive.	This is intended
 ;	as an example and as a way for someone to use the M-DRIVE/H board
 ;	with a minimum amount of trouble and work.	The performance of
-;	any CP/M BIOS can be greatly enhanced by lntegrating thls code
-;	directly into an exlstlng BIOS, as well as save some memory space.
+;	any CP/M BIOS can be greatly enhanced by integrating this code
+;	directly into an existing BIOS, as well as save some memory space.
 ;
 ;	This code expects the M-DRIVE/H board to be addressed at the
-;	following I/0 ports:
+;	following I/O ports:
 ;
 ;	0C6H - Data
 ;	0C7H - Address
@@ -272,7 +272,7 @@ HMD$DPB:					;SET FOR 1 BOARD, 8 SPT
 		DB	128				;HDRIVE TYPE FOR MFORM, DO NOT CHANGE
 		DW	8				;SECT0RS PER TRACK, THIS AND DSM ...
 							;...HUST BE INCREASED FOR MORE BOARDS
-		DB	4,151			;BSH, BLH, EXM
+		DB	4,15,1			;BSH, BLH, EXM
 		DW	HMDDSM-1,128-1	;DSM , NUMBER OF DIRECTORY ENTRIES
 		DB	11000000B,00000000B	;RESERVED DIR BLOCKS, MUST MATCH ...
 							; ... NUMBER OF DIRECTORY ENTRIES
