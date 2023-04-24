@@ -1,25 +1,10 @@
+debug	equ	0
+
 secsize		equ	128				;Size of sector in bytes
+dirbytes	equ	32				;Size of dir entry
 hmdsib		equ	2048/secsize	;Sectors in memory drive data block
 hmddsm		equ	((512-4)*8)/hmdsib
 mdriveh		equ	80h				;M-Drive/H
-
-dph			org	0
-			ds	2				;sector translate table vec
-			ds	6				;scratch
-			ds	2				;directory buffer
-dph$dpb		ds	2				;DPB block vec
-			ds	2				;checksum vec
-			ds	2				;allocation vec
-o$dpbtbl	equ		dph$dpb-dph	;Offset to DPB in DPH
-
-dpb			org	0
-mdrive$type	ds	1				;mdrive type
-			ds	1				;sectors per track
-			ds	3				;bsh, blm, exm
-			ds	2		;Reserved dir blocks, ents
-			ds	2
-			ds	2				;check sum vector
-			ds	2				;# of reserved tracks for parity check
 
 warm$boot	equ		0000h
 bdos		equ		0005h
@@ -43,12 +28,21 @@ READ		equ		cboot+27h
 WRITE		equ		cboot+2Ah
 IOLISTST	equ		cboot+2Dh
 
-	org	00100H
+	org		100H		;TPA
 ;
 begin:
 	lxi		sp,STACK
-	lxi		h,DMABUF
+	lxi		h,DMABUF	;HL=Command line buffer
 	push	h
+if debug
+	push	h
+	mvi		m,2
+	inx		h
+	mvi		m,'M'
+	inx		h
+	mvi		m,'!'
+	pop		h
+endif
 	mov		c,m			;C=byte count
 	mvi		b,0
 	inx		h
@@ -81,8 +75,8 @@ scan:
 	mov		a,h
 	ora		l
 	jz		NOT$MDRV	;Invalid DRIVE selected
-	lxi		b,o$dpbtbl
-	dad		b			;HL=ptr to DPB in DPH
+	lxi		b,0000Ah	;BC=Offset to DPB in DPH
+	dad		b			;HL=ptr to DPB
 	mov		a,m
 	inx		h
 	mov		h,m
@@ -114,17 +108,18 @@ CHK$MDRIVE:
 	mvi		c,003H		;BC=Track number (3)
 	mvi		a,SETTRK
 	call	DO$BIOS		;BIOS
-	lxi		h,DATA$BLK	;HL=Data block
-	shld	DMA			;Store address of Data block
+	lxi		h,BLK		;HL=BUF-secsize
+	shld	DMA			;Store DMA pointer
 	mov		b,h
 	mov		c,l
-	mvi		a,SETDMA	;BC=DMA buffer address
+	mvi		a,SETDMA	;BC=DMA buffer
 	call	DO$BIOS		;BIOS
 	mvi		a,READ		;Read sector
 	call	DO$BIOS		;BIOS
-	lhld	DMA			;HL=Start of Data block
-	lxi	b,	secsize-SIG$LEN	;0007DH	;BC=Offset
-	dad	b				;HL=Offset into data block
+	jnz		FMT$MDRIVE	;Had a read error?
+	lhld	DMA			;HL=DMA buffer pointer
+	lxi	b,	secsize-SIG$LEN
+	dad	b				;Point to signature area
 	mvi		e,SIG$LEN	;E=Length of SIG
 	lxi		b,SIGNATURE	;BC=Drive formatted SIG
 TEST$SIG:
@@ -138,7 +133,6 @@ TEST$SIG:
 	jmp		FMT$MDRV	;Report M-Drive is formatted
 ;
 ; Begin formatting M-Drive
-; by first reading track
 ;
 FMT$MDRIVE:
 	lxi		d,msg1
@@ -166,7 +160,7 @@ FMT$MDRIVE:
 	dad		h			;*4
 	dad		h			;*8
 	dad		h			;*16
-	shld	CUR$DBLK	;Save Data block offset (# DIR entries)
+	shld	SIZE		;Save size of M-DRIVE/H
 	xchg				;HL=DSM+1
 	lxi		b,00005H	;BC=Offset to DPB:OFFSET
 	dad		b
@@ -174,14 +168,14 @@ FMT$MDRIVE:
 	inx		h
 	mov		d,m			;D=High byte DPB:OFFSET
 	xchg				;HL=DPB:OFFSET, DE=DPB:OFFSET+2
-	shld	OFFSET		;Save HL as offset
+	shld	OFFSET		;Save HL (reserved tracks)
 	xchg				;HL=DPB:OFFSET+2
 	lxi		b,00000H	;BC=0 (Sector number)
-	lhld	CUR$DBLK	;HL=Data block offset
-	shld	END$DBLK	;Save as Curent Data block
-	lxi		h,DATA$BLK	;HL=00480H
-	shld	DMA			;Start of Data block
-L01D0:
+	lhld	SIZE		;HL=M-DRIVE/H size
+	shld	DBLK		;Save size
+	lxi		h,BLK		;HL=BUF-secsize
+	shld	DMA			;Set DMA pointer
+ReadLp:
 	push	d			;Save Track number
 	push	b			;Save Sector number
 	mov		c,e
@@ -192,10 +186,10 @@ L01D0:
 	push	b			;Save Sector number
 	mvi		a,SETSEC	;BC=Sector number
 	call	DO$BIOS		;BIOS
-	lhld	DMA			;HL=Start of Data block
+	lhld	DMA			;HL=Start of Data Buffer
 	lxi		b,secsize	;Size of sector
 	dad		b			;HL=HL+secsize
-	shld	DMA			;Save as Data block
+	shld	DMA			;Save next Data Block pointer
 	mov		b,h
 	mov		c,l
 	mvi		a,SETDMA	;BC=DMA BUFFER
@@ -205,46 +199,46 @@ L01D0:
 	pop		b			;Restore Sector number
 	pop		d			;Restore Track number
 	inx		b			;Next Sector
-	lhld	SPT			;Get Sectors Per Track value
+	lhld	SPT			;Get Sectors Per Track
 	stc					;Set carry flag=1
 	mov		a,l
 	sbb		c
 	mov		a,h
 	sbb		b			;Read Full Track?
-	jnc		L0208		;Nope, contine
+	jnc		ReadNxt		;Nope, contine
 	lxi		b,00000H	;Clear Sector number
 	inx		d			;Next Track
-L0208:
-	lhld	END$DBLK	;Curent Data block
-	dcx		h
-	shld	END$DBLK	;Curent Data block
+ReadNxt:
+	lhld	DBLK		;Curent Data block
+	dcx		h			;Count block
+	shld	DBLK		;Save Data blocks left
 	mov		a,h
 	ora		l			;All Data blocks done?
-	jnz		L01D0		;Nope, Continue
+	jnz		ReadLp		;Nope, Continue
 ;
-	lhld	CUR$DBLK	;HL=Data block offset
+	lhld	SIZE		;HL=size M-DRIVE/H
 	dad		h			;*2
 	dad		h			;*4
 	mov		b,h
-	mov		c,l			;BC=HL
-	lxi		h,DATA$DIR	;004E0H	;HL=Start of Directory Area
-	lxi		d,32		;DE=Size of Directory Entry ;00020H
-L0221:
-	dad		d
-	mvi		m,0E5H		;Empty sector fill value
-	dcx		b
+	mov		c,l			;BC= count of blocks
+	lxi		h,DIR		;HL=BUF-dirbytes
+	lxi		d,dirbytes	;DE=Size of Directory Entry
+FmtNxt:
+	dad		d			;HL=HL+dirbytes
+	mvi		m,0E5H		;Set block formatted
+	dcx		b			;Count block done
 	mov		a,c
-	ora		b			;BC=0?
-	jnz		L0221		;Nope
+	ora		b			;All blocks marked?
+	jnz		FmtNxt		;Nope
 ;
 	lhld	OFFSET
 	xchg
 	lxi		b,00000H	;BC=0
-	lhld	CUR$DBLK
-	shld	END$DBLK
-	lxi		h,DATA$BLK	;00480H
-	shld	DMA
-L023D:
+	lhld	SIZE		;Size of M-DRIVE/H
+	shld	DBLK		;Set blocks counter
+	lxi		h,BLK		;HL=BUF-secsize
+	shld	DMA			;Set DMA pointer
+WritLp:
 	push	d			;Save Track number
 	push	b			;Save Sector number
 	mov		c,e
@@ -255,10 +249,10 @@ L023D:
 	push	b			;Save Sector number
 	mvi		a,SETSEC	;BC=Sector number 021H
 	call	DO$BIOS		;BIOS
-	lhld	DMA
+	lhld	DMA			;Get DMA pointer
 	lxi		b,secsize	;Size of sector
 	dad		b			;HL=HL+secsize
-	shld	DMA
+	shld	DMA			;Set new DMA pointer
 	mov		b,h
 	mov		c,l
 	mvi		a,SETDMA	;BC=DMA buffer 024H
@@ -274,39 +268,39 @@ L023D:
 	sbb		c
 	mov		a,h
 	sbb		b
-	jnc		L0275		;Write Full Track?
+	jnc		WrtNxt		;Write Full Track?
 	lxi		b,00000H	;Clear Sector number
 	inx		d			;Next Track
-L0275:
-	lhld	END$DBLK
+WrtNxt:
+	lhld	DBLK
 	dcx		h
-	shld	END$DBLK
+	shld	DBLK
 	mov		a,h
 	ora		l			;All blocks writen?
-	jnz		L023D		;Nope, continue
+	jnz		WritLp		;Nope, continue
 ;
 ; Write SIGNATURE block to mark M-Drive formatted
 ;
 	mvi		c,000H		;Set Sector = 0
-	mvi		a,SETSEC	;BC=Sector number 021H
+	mvi		a,SETSEC	;BC=Sector number
 	call	DO$BIOS		;BIOS
-	mvi		c,003H		;Set Track = 3
-	mvi		a,SETTRK	;BC=Track number 01EH
+	mvi		c,003H		;Set Track  = 3
+	mvi		a,SETTRK	;BC=Track number
 	call	DO$BIOS
-	lxi		h,DATA$BLK	;00480H
-	shld	DMA
+	lxi		h,BLK		;HL=BUF-secsize
+	shld	DMA			;Set DMA pointer
 	mov		b,h
 	mov		c,l
-	mvi		a,SETDMA	;BC=DMA buffer 024H
+	mvi		a,SETDMA	;BC=DMA buffer
 	call	DO$BIOS
 	mvi		a,READ
-	call	DO$BIOS		;BIOS
+	call	DO$BIOS		;Read sector
 	lhld	DMA
-	lxi		b,secsize-SIG$LEN	;0007DH
-	dad		b
+	lxi		b,secsize-SIG$LEN
+	dad		b			;Point to signature area
 	lxi		b,SIGNATURE
 	mvi		e,SIG$LEN
-SET$SIG:
+SET$SIG:				;Store new signature block
 	ldax	b
 	mov		m,a
 	inx		h
@@ -320,6 +314,11 @@ SET$SIG:
 ; Entry: A=BIOS function
 ;
 DO$BIOS:
+if debug
+	xra		a
+	lxi		h,DPH
+	ret
+endif ;debug
 	lhld	warm$boot+1
 	mov		l,a
 	pchl			;INFO: index jump
@@ -423,20 +422,52 @@ print:
 ;
 DRIVE:
 	db	0
-CUR$DBLK:
+; Boards	DSM						SIZE
+;	1		(((512-4)*8)/SIB)-1		32
+;	2		(((512-4)*16)/SIB)-1	64
+SIZE:
 	dw	0
-END$DBLK:
-	dw	0
+; SPT		BOARDS
+;	8		1
+;	16		2
 SPT:
+	dw	0
+DBLK:
 	dw	0
 OFFSET:
 	dw	0
 DMA:
 	dw	0
-	org	0042DH
-STACK	equ	$
-	org	00480H
-DATA$BLK	equ	$
-	org	DATA$BLK + 60h
-DATA$DIR	equ	$
+	ds	40H
+STACK:	equ	$
+
+;
+;	Disk Parameter Block
+;
+		DB	mdriveh			;M-DRIVE/H type flag
+DPB:						;SET FOR 1 BOARD, 8 SPT
+		DW	8				;SPT (SECT0RS PER TRACK, THIS AND DSM ...
+							;...HUST BE INCREASED FOR MORE BOARDS)
+		DB	4,15,1			;BSH, BLH, EXM
+		DW	HMDDSM-1		;DSM-1
+		DW	128-1			;DRM-1
+		DB	0C0h,00h		;AL0, AL1 (RESERVED DIR BLOCKS, MUST MATCH ...
+							; ... NUMBER OF DIRECTORY ENTRIES)
+		DW	0				;CKS (CHECK SUM), This is always zero.
+		DW	4				;OFF (NUMBER OF RESERVED TRAGKS FOR PARITY CHECK
+							;	THIS IS ALWAYS 4)
+;
+;	Disk Parameter Header
+;
+DPH:
+		DW	0				;SECT0R TRANSLATE TABLE
+		DW	0,0,0			;SCRATCH
+		DW	80h				;DIRECT0RY BUFFER
+		DW	DPB				;DPB BLOCK
+		DW	0				;CHECKSUM VECTOR
+		DW	0				;ALL0CATI0N VECTOR
+;
+BUF		org	500H
+BLK:	equ	buf-secsize		;480H
+DIR:	equ	buf-dirbytes	;4E0H
 	end
