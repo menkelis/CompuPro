@@ -60,7 +60,7 @@ LF	equ	10				;ascii for line feed
 	call	mkBmap		;make the bitmap
 	call	setParm		;Set relocation parameters
 	call	dspData		;display the data we've collected
-	call	wrtImg		;write the image to BMDRIVE.COM
+	call	wrtImg		;write the image to MDRIVE.COM
 
 	lxi		d,mDone		;DE->creation complete message
 	jmp		exitMsg
@@ -134,16 +134,9 @@ rdFiles:
 ;     of bytes read returned in HL.
 ;----------------------------------------------------------------------------
 rdMdrive:
-	lxi		h,'L-'		;put 'L-MDRIVE' in 0-7 of file name
-	shld	FCBFN+0
-	lxi		h,'MD'
-	shld	FCBFN+2
-	lxi		h,'RI'
-	shld	FCBFN+4
-	lxi		h,'VE'
-	shld	FCBFN+6
-	mvi		a,' '
-	sta		FCBEXT		;Blank file extension in FCB
+	lxi		h,ldrFcb	;HL->FCB for L-MDRIVE.COM
+	lxi		d,FCB		;DE->destination (default FCB)
+	call	movFcb		;put output file name into default FCB
 	lxi		h,img0		;HL->where to read image file
 	call	readImg		;read image from file #1
 						;Return HL=length
@@ -177,7 +170,7 @@ readImg:
 
 haveExt:
 	lda		FCBFN		;A=first character of file name
-	sui		'0'			;see if a digit 0-6
+	sui		'0'			;see if a digit 0-5
 	cpi		5
 	jnc		haveFn		;no, a file name must already be there
 
@@ -423,13 +416,13 @@ lsnDone:
 ; wrtImg - Write the final image to BMOVCPM.COM
 ;----------------------------------------------------------------------------
 wrtImg:
-	lxi		h,outFcb	;HL->FCB for BMDRIVE.COM
+	lxi		h,outFcb	;HL->FCB for MDRIVE.COM
 	lxi		d,FCB		;DE->destination (default FCB)
 	call	movFcb		;put output file name into default FCB
 
 	lxi		d,FCB		;DE->output file FCB
 	mvi		c,DELETEF	;C=delete file command
-	call	BDOS		;delete BMDRIVE.COM
+	call	BDOS		;delete MDRIVE.COM
 
 	lxi		d,FCB		;DE->output file FCB
 	mvi		c,MAKEF		;C=make file command
@@ -529,7 +522,7 @@ mHelp:	equ	$		;banner/help display
  db CR,LF
  db 'G-MDRIVE v1.0 - Make MDRIVE.COM',CR,LF
  db LF
- db 'Creates the program BMDRIVE.COM (Beta-MDRIVE)',CR,LF
+ db 'Creates the program MDRIVE.COM',CR,LF
  db LF
  db 'Usage: G-MDRIVE param1 param2',CR,LF
  db '  Where param1 & param2 = [filename]XX[.ext]',CR,LF
@@ -557,7 +550,7 @@ dMapSz	db	'xxxxh',CR,LF,'$'
 mImgSz	db	'Final image size: '
 dImgSz	db	'xxxxh',CR,LF,'$'
 
-mDone	db	LF,'BMDRIVE.COM Created',CR,LF,'$'
+mDone	db	LF,'MDRIVE.COM Created',CR,LF,'$'
 
 mLenErr	db	CR,LF,'File sizes do not match',CR,LF,'$'
 mNoFile	db	CR,LF,'File not found',CR,LF,'$'
@@ -565,12 +558,12 @@ mRdErr	db	CR,LF,'File read error',CR,LF,'$'
 mNotDif	db	CR,LF,'The two files are the same MDISK memory size',CR,LF,'$'
 mMakErr	db	CR,LF,'Can''t create output file',CR,LF,'$'
 mWrtErr	db	CR,LF,'File write error, disk full?',CR,LF,'$'
-;mNoSize	db	CR,LF,'Memory size not in file name',CR,LF,'$'
 
 ;-----------------------------------------------------------------------------
 ;  Data Area
 ;-----------------------------------------------------------------------------
-outFcb	db	0,'BMDRIVE COM',0,0,0,0		;output FCB
+outFcb	db	0,'MDRIVE  COM',0,0,0,0		;output FCB
+ldrFcb	db	0,'L-MDRIVECOM',0,0,0,0		;loader FCB
 
 saveStk	ds	2			;save area for CP/M stack pointer 
 fcbSave	ds	16			;save area for FCB prepared by the CCP
@@ -586,7 +579,7 @@ imgLen	ds	2			;length of MDRIVE+MDISK+BITMAP to be saved
 stack	equ	$
 
 ;-----------------------------------------------------------------------------
-;  MDRIVE.COM is patched here for copying into the generated BMDRIVE
+;  MDRIVE.COM is patched here for copying into the generated MDRIVE
 ;-----------------------------------------------------------------------------
 		org	($+255) AND 0FF00h	;force page boundary
 ;-----------------------------------------------------------------------------

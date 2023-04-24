@@ -2,6 +2,11 @@
 ; V1.0 2023 Michael Enkelis
 ; Some code was derived from CPMOVE written by Mike Douglas 
 
+; Usage: MDRIVE -Drive Address
+;
+; Drive: A - P
+; Address: >CP/M
+
 ; Misc equates
 TRUE	equ	-1
 FALSE	equ	not TRUE
@@ -27,15 +32,7 @@ BOARDS:	DB		1		;NUMBER OF M-DRIVE/H BOARDS
 past:	lxi		sp,stack
 		call	findBIOS	;Get address of BIOS vectors
 		call	findBOARDS	;Get number of M-DRIVE boards
-if not debug
-		call	getarg
-endif
-if debug
-		mvi		a,'M'
-		sta		UNIT
-		lxi		h,6000h
-		shld	HIMEM
-endif
+		call	getargs		;Process command line
 		call	validate	;Validate parameters
 		call	relocate	;Relocate driver code
 		call	getvec		;Set BIOS vectors
@@ -44,11 +41,13 @@ endif
 		call	setdpb		;Set DPB
 		call	movmem		;Copy driver to run location
 		call	setvec		;Set BIOS to use driver
-
-		jmp		0000h		;Warm-Boot
+		jmp		warm$boot	;Warm-Boot
 ;
 findBIOS:
 		lhld	warm$boot+1
+		mov		a,h			;A=Start of BIOS
+		cpi		0FCh		;BIOS > 63K?
+		jnc		BIG$CPM		;Yes, Report no room for driver
 		lxi		d,0015h		;DE=Offset from WBOOT to HOME
 		dad		d
 		shld	BIOS		;Address of BIOS function HOME
@@ -58,7 +57,15 @@ findBIOS:
 findBOARDS:
 		ret
 ;
-getarg:	lxi		h,DMABUF
+getargs:
+if debug
+		mvi		a,'M'
+		sta		UNIT
+		lxi		h,6000h
+		shld	HIMEM
+		ret
+endif
+		lxi		h,DMABUF
 		push	h
 		mov		c,m			;C=byte count
 		mvi		b,0
@@ -75,8 +82,6 @@ scan:	call	SSNEXT
 		jm		BAD$CMD
 		ldax	d			;Get DRIVE letter
 		sta		UNIT
-;		sui		'A'			;Convert from ASCII to binary
-;		sta		DRIVE		;Save as DRIVE
 		jmp		scan
 isHEX:	call	FNDHEX		;Convert buffer to HEX
 		jc		scan		;Not HEX
@@ -84,6 +89,7 @@ isHEX:	call	FNDHEX		;Convert buffer to HEX
 		jmp		scan
 ;
 validate:
+; Valid drive range: A - P
 		lda		UNIT		;Ascii UNIT
 		ana		a			;No drive specified?
 		jm		WHT$DRV		;Yes, report error
@@ -92,15 +98,13 @@ validate:
 		jc		INV$DRV		;Yes, report error
 		cpi		010H		;Too large?
 		jnc		INV$DRV		;Yes, report error
+; Valid driver load: > base of CP/M
 		lhld	HIMEM		;Drive load address
-		mov		a,h
-		ora		l			;HL=0?
-		jz		INV$MEM		;Yes, report error
-		cpi		5Ch
-		jc		INV$MEM		;H< 24K?
-		mov		a,l
-		ana		a			;L<>0?
-		jnz		INV$MEM		;Yes, report error
+		lda		BDOS+2		;A=BDOS location (base of CP/M)
+		cmp		h			;Are we loading driver below CP/M?
+		jnc		INV$MEM		;Yes, report error
+		dcr		l			;Test for XX00
+		jp		INV$MEM		;Not zero, report error
 		ret
 ;
 relocate:
@@ -457,6 +461,13 @@ WHT$DRV:
 ;
 INV$MEM:
 		lxi		d,err3		;DE=Message
+		jmp		BAIL		;Print message and exit program
+;
+; Report No Room above CP/M for driver
+;
+BIG$CPM:
+		lxi		d,err4		;DE=Message
+;
 ;
 ; Print Message (DE), Fall into EXIT
 ;
@@ -466,7 +477,7 @@ BAIL:
 ; Exit program
 ;
 EXIT:
-		jmp		0000h		;BIOS: Warm Boot
+		jmp		warm$boot	;BIOS: Warm Boot
 ;
 ;********************************************
 ;	SUBROUTINE TO DISPLAY ON CONSOLE		*
@@ -511,6 +522,10 @@ err2:
 err3:
 		db	'INVALID DRIVER LOAD ADDRESS'
 		db	0Dh,0Ah,'$'
+
+err4:	db	'NO ROOM ABOVE CP/M FOR DRIVER'
+		db	0Dh,0Ah,'$'
+
 ;
 ; DATA	AREA
 BIOS:	DW		0
