@@ -1,10 +1,10 @@
-debug	equ	0
+true	equ	-1
+false	equ	not true
+debug	equ	false
 
 secsize		equ	128				;Size of sector in bytes
 dirbytes	equ	32				;Size of dir entry
-hmdsib		equ	2048/secsize	;Sectors in memory drive data block
-hmddsm		equ	((512-4)*8)/hmdsib
-mdriveh		equ	80h				;M-Drive/H
+mdriveh		equ	80h				;Flag M-Drive/H
 
 warm$boot	equ		0000h
 bdos		equ		0005h
@@ -422,14 +422,8 @@ print:
 ;
 DRIVE:
 	db	0
-; Boards	DSM						SIZE
-;	1		(((512-4)*8)/SIB)-1		32
-;	2		(((512-4)*16)/SIB)-1	64
 SIZE:
 	dw	0
-; SPT		BOARDS
-;	8		1
-;	16		2
 SPT:
 	dw	0
 DBLK:
@@ -440,7 +434,14 @@ DMA:
 	dw	0
 	ds	40H
 STACK:	equ	$
-
+if debug
+sib		equ	2048/secsize	;Sectors in memory drive data block
+dsm		equ	((512-4)*8)/sib
+; Boards	DSM						SIZE
+;	1		(((512-4)*8)/SIB)-1		253
+;	2		(((1024-4)*8)/SIB)-1	509
+;	3		(((1536-4)*8)/SIB)-1	765
+;	4		(((2048-4)*8)/SIB)-1	1021
 ;
 ;	Disk Parameter Block
 ;
@@ -449,7 +450,7 @@ DPB:						;SET FOR 1 BOARD, 8 SPT
 		DW	8				;SPT (SECT0RS PER TRACK, THIS AND DSM ...
 							;...HUST BE INCREASED FOR MORE BOARDS)
 		DB	4,15,1			;BSH, BLH, EXM
-		DW	HMDDSM-1		;DSM-1
+		DW	DSM-1			;DSM-1
 		DW	128-1			;DRM-1
 		DB	0C0h,00h		;AL0, AL1 (RESERVED DIR BLOCKS, MUST MATCH ...
 							; ... NUMBER OF DIRECTORY ENTRIES)
@@ -466,6 +467,7 @@ DPH:
 		DW	DPB				;DPB BLOCK
 		DW	0				;CHECKSUM VECTOR
 		DW	0				;ALL0CATI0N VECTOR
+endif ;debug
 ;
 BUF		org	500H
 BLK:	equ	buf-secsize		;480H
