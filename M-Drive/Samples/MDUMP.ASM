@@ -371,10 +371,15 @@ SETDMA:	MOV		L,C
 ;           DE = Translation table address.
 ;           BC = Number to translate.
 ;
-SECTRN:	MOV		A,D
-		ORA		E
-		RZ					;No translation needed.
-		JMP		BIOSTRN		;Let BIOS translate.
+;	EXIT	HL = Physical sector number.
+;
+SECTRN:	MOV		A,D			;DE=Translation table address
+		ORA		E			;Are we using translation?
+		JNZ		BIOSTRN		;Yes, Let BIOS translate
+		MOV		H,B			;No translation required
+		MOV		L,C			;HL=Physical sector number
+		RET					;And done
+
 ;
 ;	R E A D
 ;

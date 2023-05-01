@@ -153,7 +153,9 @@ BIOSDHA:JMP		NOTHING
 ;           DE = Translation table address.
 ;           BC = Number to translate.
 ;
-SECTRN:	MOV		A,D
+SECTRN:	MOV		H,B
+		MOV		L,C			;HL = physical sector
+		MOV		A,D
 		ORA		E
 		RZ					;No translation needed.
 		JMP		NOTHING		;Let BIOS translate.
