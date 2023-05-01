@@ -7,16 +7,11 @@
 ; Drive: A - P
 ; Address: >CP/M
 
-; Misc equates
-TRUE	equ	-1
-FALSE	equ	not TRUE
-DEBUG	equ	FALSE
-
 ;-----------------------------------------------------------------------------
 ; Start of program
 ;-----------------------------------------------------------------------------
 
-
+mdriveh		equ		80h		;Flag M-Drive/H
 warm$boot	equ		0000h
 bdos		equ		0005h
 DMABUF		equ		0080h
@@ -26,14 +21,15 @@ STACK		equ		800H
 main:	equ		$
 		jmp		past
 ; VALUES FILLED IN BY G-MDRIVE.
-RELBAS:	DS		2		;RELOCATION BASE
-MDSIZE:	DS		2		;SIZE OF MDISK DRIVER
-BOARDS:	DB		1		;NUMBER OF M-DRIVE/H BOARDS
+RELBAS:		DS		2		;RELOCATION BASE
+MDSIZE:		DS		2		;SIZE OF MDISK DRIVER
+BOARDS:		DB		1		;NUMBER OF M-DRIVE/H BOARDS
 past:	lxi		sp,stack
 		call	findBIOS	;Get address of BIOS vectors
 		call	findBOARDS	;Get number of M-DRIVE boards
 		call	getargs		;Process command line
 		call	validate	;Validate parameters
+		call	loaded		;Check for existing driver
 		call	relocate	;Relocate driver code
 		call	getvec		;Set BIOS vectors
 		call	setdrv		;Set drive
@@ -58,13 +54,6 @@ findBOARDS:
 		ret
 ;
 getargs:
-if debug
-		mvi		a,'M'
-		sta		UNIT
-		lxi		h,6000h
-		shld	HIMEM
-		ret
-endif
 		lxi		h,DMABUF
 		push	h
 		mov		c,m			;C=byte count
@@ -106,6 +95,34 @@ validate:
 		dcr		l			;Test for XX00
 		jp		INV$MEM		;Not zero, report error
 		ret
+;
+; Check for existing driver
+loaded:
+		lda		UNIT		;Recover UNIT
+		sui		'A'			;Convert to binary DRIVE
+		mov		c,a			;Into reg C
+		lhld	BIOS		;Point to base of BIOS
+		lxi		d,003h		;Offset to SELDSK
+		dad		d
+		lxi		d,return
+		push	d			;Stack return address
+		pchl				;Call BIOS
+							;Return HL=0 if invalid drive else HL=DPH
+return:	mov		a,h			;Test if HL = 0
+		ora		l
+		rz					;Invalid DRIVE selected, no driver loaded.
+		lxi		b,00Ah		;BC=Offset to DPB in DPH
+		dad		b			;HL=ptr to DPB
+		mov		a,m
+		inx		h
+		mov		h,m
+		mov		l,a			;HL=ptr to DPB
+		dcx		h			;HL=ptr to mdrive$type
+		mov		a,m			;Fetch M-Drive type flag
+		cpi		mdriveh		;Is this hardware M-Drive?
+		rnz					;Nope
+		jmp		DUP$DRV		;Report driver is loaded
+;
 ;
 relocate:
 ; INIT FOR RELOCATION
@@ -155,15 +172,17 @@ ENDREL:	;END OF RELOCATION
 		POP		D			;CLEAR STACKED ADDRESS
 		ret
 ;
+; Set flags in driver
 setdrv:	lhld	DRIVE
 		shld	SIZE		;Get actual driver code size
 		lda		UNIT
 		sui		'A'
-		sta		DRIVE		;Set UNIT number
-		mvi		a,128
-		sta		DRIVE+1		;Set M-DRIVE/H flag
+		mov		l,a
+		mvi		h,mdriveh
+		shld	DRIVE		;Set M-DRIVE/H flag
 		ret
 ;
+; Set DPB in driver
 setdpb:	lda		BOARDS		;Number of M-DRIVE/H boards
 		dcr		a			;Range: 0 - 7
 		mov		l,a
@@ -196,8 +215,8 @@ DPBTBL:
 		db		0			;End of table
 ;	2 boards
 		dw		16			;SPT
-		db		4,15,1		;BSH, BLH, EXM
-		dw	(((512-4)*16)/SIB)-1	;DSM
+		db		4,15,0		;BSH, BLH, EXM
+		dw	(((1024-4)*8)/SIB)-1	;DSM
 		dw		128-1		;DRM
 		db		0C0h,00h	;AL0, AL1
 		dw		0			;CKS
@@ -205,8 +224,8 @@ DPBTBL:
 		db		0			;End of table
 ;	3 boards
 		dw		24			;SPT
-		db		4,15,1		;BSH, BLH, EXM
-		dw	(((512-4)*24)/SIB)-1	;DSM
+		db		4,15,0		;BSH, BLH, EXM
+		dw	(((1536-4)*8)/SIB)-1	;DSM
 		dw		128-1		;DRM
 		db		0C0h,00h	;AL0, AL1
 		dw		0			;CKS
@@ -214,8 +233,8 @@ DPBTBL:
 		db		0			;End of table
 ;	4 boards
 		dw		32			;SPT
-		db		4,15,1		;BSH, BLH, EXM
-		dw	(((512-4)*32)/SIB)-1	;DSM
+		db		4,15,0		;BSH, BLH, EXM
+		dw	(((2048-4)*8)/SIB)-1	;DSM
 		dw		128-1		;DRM
 		db		0C0h,00h	;AL0, AL1
 		dw		0			;CKS
@@ -223,8 +242,8 @@ DPBTBL:
 		db		0			;End of table
 ;	5 boards
 		dw		40			;SPT
-		db		4,15,1		;BSH, BLH, EXM
-		dw	(((512-4)*40)/SIB)-1	;DSM
+		db		4,15,0		;BSH, BLH, EXM
+		dw	(((2560-4)*8)/SIB)-1	;DSM
 		dw		128-1		;DRM
 		db		0C0h,00h	;AL0, AL1
 		dw		0			;CKS
@@ -232,8 +251,8 @@ DPBTBL:
 		db		0			;End of table
 ;	6 boards
 		dw		48			;SPT
-		db		4,15,1		;BSH, BLH, EXM
-		dw	(((512-4)*48)/SIB)-1	;DSM
+		db		4,15,0		;BSH, BLH, EXM
+		dw	(((3072-4)*8)/SIB)-1	;DSM
 		dw		128-1		;DRM
 		db		0C0h,00h	;AL0, AL1
 		dw		0			;CKS
@@ -241,8 +260,8 @@ DPBTBL:
 		db		0			;End of table
 ;	7 boards
 		dw		56			;SPT
-		db		4,15,1		;BSH, BLH, EXM
-		dw	(((512-4)*56)/SIB)-1	;DSM
+		db		4,15,0		;BSH, BLH, EXM
+		dw	(((3584-4)*8)/SIB)-1	;DSM
 		dw		128-1		;DRM
 		db		0C0h,00h	;AL0, AL1
 		dw		0			;CKS
@@ -250,14 +269,15 @@ DPBTBL:
 		db		0			;End of table
 ;	8 boards
 		dw		64			;SPT
-		db		4,15,1		;BSH, BLH, EXM
-		dw	(((512-4)*64)/SIB)-1	;DSM
+		db		4,15,0		;BSH, BLH, EXM
+		dw	(((4096-4)*8)/SIB)-1	;DSM
 		dw		128-1		;DRM
 		db		0C0h,00h	;AL0, AL1
 		dw		0			;CKS
 		dw		4			;OFF
 		db		0			;End of table
 ;
+; Set DPH in driver
 setdph:	lda		0004h		;Current drive
 		mov		c,a
 		lhld	BIOS
@@ -275,24 +295,32 @@ retdph:	lxi		d,0008h
 		shld	dph+0008h	;Set driver DPH entry for DIRBUF
 		ret
 ;
-; Copy FROM BIOS to mdisk
+; Copy FROM BIOS to mdisk, 8 jump vectors
 getvec:	lhld	BIOS
 		lxi		d,GO$BIOS
 							;HL=src, DE=dest
-		mvi		c,7*3		;C=number of JMP XXXX to copy
-		call	copy
-		inx		h			;HL=HL+1
-		inx		h			;HL=HL+2
-		inx		h			;HL=HL+3
-		mvi		c,1*3		;C=number of JMP XXXX to copy
-		call	copy
+		mvi		c,7			;C=number of JMP XXXX to copy
+		call	getjmp
+		inx		h			;Skip
+		inx		h			; Over
+		inx		h			;  LISTST, Pointing to SECTRAN
+		mvi		c,1			;C=number of JMP XXXX to copy
+		call	getjmp
 		ret
-copy:	mov		a,m
+getjmp:	mov		a,m
+		stax	d
+		inx		h
+		inx		d
+		mov		a,m
+		stax	d
+		inx		h
+		inx		d
+		mov		a,m
 		stax	d
 		inx		h
 		inx		d
 		dcr		c
-		jnz		copy
+		jnz		getjmp
 		ret
 ;
 ; Move image into hi-memory
@@ -311,32 +339,31 @@ movlp:	mov		a,b			;BC=0?
 		dcx		b
 		jmp		movlp
 ;
-; Copy FROM mdisk to BIOS new JMP table
+; Copy FROM mdisk to BIOS 8 new jump vectors
 setvec:	lhld	BIOS
-if DEBUG
-	lxi		h,80h
-endif ;DEBUG
-		xchg
-		lhld	himem		;HL=src, DE=dest
+		xchg				;DE=pointer to BIOS:HOME
+		lhld	himem		;HL=pointer to DRIVER:HOME
 		mvi		c,7			;C=number of JMP XXXX to create
 		call	setjmp
-		inx		d
-		inx		d
-		inx		d
+		inx		d			;Skip
+		inx		d			; Over
+		inx		d			;  LISTST, Pointing to SECTRAN
 		mvi		c,1			;C=number of JMP XXXX to create
 		call	setjmp
 		ret
-setjmp:	mvi		a,jmp
-		stax	d
-		mov		a,l
-		inx		d
+; Set JMP vector
+; HL=src, DE=dest
+setjmp:	mvi		a,jmp		;JMP
+		stax	d			;Offset=0
+		mov		a,l			;A=Current low byte
+		inx		d			;Offset=1
 		inx		h
-		stax	d
+		stax	d			;Low byte of address
+		inx		d			;Offset=2
 		inx		h
-		inx		d
-		mov		a,h
-		stax	d
-		inx		d
+		mov		a,h			;A=HIMEM
+		stax	d			;High byte of address
+		inx		d			;Offset to next JMP
 		inx		h
 		dcr		c
 		jnz		setjmp
@@ -344,9 +371,21 @@ setjmp:	mvi		a,jmp
 
 ;
 ;********************************************
+;	SUBROUTINE TO CR LF						*
+;********************************************
+crlf:	mvi		a,0Dh
+		call	conout
+		mvi		a,0Ah
+		jmp		conout
+;
+;********************************************
 ;	SUBROUTINE TO DISPLAY HEX NUMBER		*
 ;********************************************
 ;
+hexoutB:call	hexout
+space:	mvi		a,' '
+		jmp		conout
+
 hexout:	push	psw
 		rar
 		rar
@@ -467,6 +506,12 @@ INV$MEM:
 ;
 BIG$CPM:
 		lxi		d,err4		;DE=Message
+		jmp		BAIL
+;
+; Report Driver Loaded
+;
+DUP$DRV:
+		lxi		d,err5		;DE=Message
 ;
 ;
 ; Print Message (DE), Fall into EXIT
@@ -526,6 +571,8 @@ err3:
 err4:	db	'NO ROOM ABOVE CP/M FOR DRIVER'
 		db	0Dh,0Ah,'$'
 
+err5:	db	'DRIVER ALREADY LOADED'
+		db	0Dh,0Ah,'$'
 ;
 ; DATA	AREA
 BIOS:	DW		0

@@ -1,57 +1,252 @@
-;	MDISK  Relocatable M-Drive/H Driver module
-;
-; ASM MDISK (ORG 0000h)
-; DDT
-; IMDISK.HEX
-; R100
-; G0
-; ERA MDISK000.COM
-; SAVE 1 MDISK000.COM
-; ASM MDISK (ORG 0100h)
-; LOAD MDISK
-; ERA MDISK100.COM
-; REN MDISK100.COM=MDISK.COM
+BDOS	equ		0005h
 
-
-;	ORG	0000h
+warm$boot	equ		0000h
+secsize		equ		128				;Size of sector in bytes
+spt			equ		8
+DMABUF		equ		0080h
+BUFDIR		equ		DMABUF
+MEMDRV		equ		'M'
+MRTRY		equ		10				;MAX RETRY COUNT
+mdHOME		equ		00h
+mdSELDSK	equ		03h
+mdSETTRK	equ		06h
+mdSETSEC	equ		09h
+mdSETDMA	equ		0Ch
+mdREAD		equ		0Fh
+mdWRITE		equ		12h
 	ORG	0100h
+	lxi		sp,STACK
+	lxi		h,MDRIVE
+	shld	driver
+	lxi		h,DRIVE
+	mvi		m,MEMDRV-'A'
+	inx		h
+	mvi		m,80h
+	lxi		h,4
+	shld	trk
+	lxi		h,0
+	shld	sec
+	lxi		h,DMABUF
+	shld	dma
 
-;
-;	M - D R I V E / H
-;
-;	The DPB is set for one M-DRIVE/H board, and will be adjusted by the
-;	installer progam accordingly.
-;	Information such as sector, track, and DMA address are saved even
-;	if they are not intended for the memory drive.	The performance of
-;	any CP/M BIOS can be greatly enhanced by integrating this code
-;	directly into an existing BIOS, as well as save some memory space.
-;
-;	This code expects the M-DRIVE/H board to be addressed at the
-;	following I/O ports:
-;
-;	0C6H - Data
-;	0C7H - Address
-;
-;		Written L. Ott	12/17/82
-;		1982 by CompuPro div. Godbout Electronics
-;
-;	Updated for use by self-installer by Michael Enkelis 2023
-;	Self-installer written by Michael Enkelis with some code
-;	written by Mike Douglas 2017
+	mvi		c,MEMDRV-'A'
+	mvi		b,0
+	mvi		a,mdSELDSK		;Select drive
+	call	DO$BIOS
+	mov		a,h
+	ora		l
+	jz		SEL$ERR
 
-HBASE	EQU	0C6h
-HDATA	EQU	HBASE
-HADDR	EQU	HBASE+1
+	mvi		a,mdHOME		;Home
+	call	DO$BIOS
 
-MEMDRV	EQU	'M'				;SET AS DRIVE "M"
-MRTRY	EQU	10				;MAX RETRY COUNT
-BUFDIR	EQU	80H				;DIRECTORY BUFFER
-spt		equ	8				;Sectors per track
-secsize	equ	128				;Size of sector in bytes
-NOTHING	equ	0
+	lhld	dma				;DMA buffer
+	mov		b,h
+	mov		c,l
+	mvi		a,mdSETDMA		;Set DMA
+	call	DO$BIOS
 
-SIB:	EQU	2048/secsize	;SECTORS IN MEMORY DRIVE DATA BLOCK
-DSM:	EQU	((512-4)*spt)/SIB
+Nxt$T:
+	lhld	trk				;Track #
+	mov		b,h
+	mov		c,l
+	mvi		a,mdSETTRK		;Set Sector
+	call	DO$BIOS
+
+Nxt$S:
+	lhld	sec				;Sector #
+	mov		b,h
+	mov		c,l
+	mvi		a,mdSETSEC		;Read sector
+	call	DO$BIOS
+
+	nop
+	nop
+	nop
+	mvi		a,mdREAD		;Read sector
+	call	DO$BIOS
+	nop
+	nop
+	nop
+	ana		a
+	jnz		RED$ERR
+	nop
+	nop
+	nop
+	lhld	dma
+	call	Dump$hex
+	lhld	sec
+	inx		h
+	shld	sec
+	mov		a,l
+	cpi		8
+	jnz		Nxt$S
+
+	call	crlf
+	jmp		warm$boot			;warm boot
+
+Dump$hex:
+	lxi		d,Trk$num
+	call	print
+	lhld	trk
+	mov		a,h
+	call	Hexout
+	mov		a,l
+	call	Hexout
+	lxi		d,Sec$num
+	call	print
+	lhld	sec
+	mov		a,h
+	call	Hexout
+	mov		a,l
+	call	Hexout
+
+	mvi		c,128
+	mvi		b,15
+Dump$0:
+	call	crlf
+	mov		a,h
+	call	Hexout
+	mov		a,l
+	call	HexoutB
+	call	space
+Dump$1:
+	mov		a,m
+	inx		h
+	call	HexoutB
+	dcr		c
+	jz		crlf
+	dcr		b
+	jnz		Dump$1
+	mvi		b,15
+	jmp		Dump$0
+;
+; Entry: A=BIOS function
+;
+DO$BIOS:
+	push	psw
+	lxi		d,do$msg
+	call	print
+	mvi		a,'A'
+	call	conout
+	mvi		a,'='
+	call	conout
+	pop		psw
+	push	psw
+	call	HexoutB
+	mvi		a,'B'
+	call	conout
+	mvi		a,'C'
+	call	conout
+	mvi		a,'='
+	call	conout
+	mov		a,b
+	call	Hexout
+	mov		a,c
+	call	Hexout
+	pop		psw
+	lhld	DRIVER
+	mov		l,a
+	pchl			;INFO: index jump
+
+
+crlf:
+	mvi		a,0dh
+	call	conout
+	mvi		a,0ah
+	jmp		conout
+;
+HexoutB:
+	call	hexout
+;	Fall into SPACE
+;
+space:
+	mvi		a,' '
+	jmp		conout
+;
+;********************************************
+;	SUBROUTINE TO DISPLAY HEX NUMBER		*
+;********************************************
+Hexout:
+	push	psw
+	rar
+	rar
+	rar
+	rar
+	call	hexout1
+	pop		psw
+hexout1:
+	ani		00FH
+	sui		00AH
+	jm		hexout2
+	adi		007H
+hexout2:
+	adi		03AH
+; Fall into conout
+;
+;********************************************
+;	SUBROUTINE TO DISPLAY ON CONSOLE		*
+;********************************************
+conout:
+	push	psw
+	push	b
+	push	d
+	push	h
+	mov		e,a
+	mvi		c,2
+	call	BDOS
+	pop		h
+	pop		d
+	pop		b
+	pop		psw
+	ret
+print:
+	push	psw
+	push	b
+	push	d
+	push	h
+	mvi		c,9
+	call	BDOS
+	pop		h
+	pop		d
+	pop		b
+	pop		psw
+	ret
+
+SEL$ERR:
+	lxi		d,SEL$MSG
+	jmp		bail
+RED$ERR:
+	lxi		d,RED$MSG
+bail:
+	call	print
+	call	Hexout
+	jmp		warm$boot
+;
+NOTHING:
+	xra		a
+	mov		h,a
+	mov		l,a
+	ret
+
+SEL$MSG		db	0dh,0ah,'Select Error:','$'
+RED$MSG		db	0dh,0ah,'Read Error:','$'
+Do$msg:		db	0dh,0ah,'BIOS: $'
+Trk$num		db	0dh,0ah,'Track: $'
+Sec$num		db	0dh,0ah,'Sector: $'
+driver:		dw	0
+trk:		dw	0
+sec:		dw	0
+dma:		dw	0
+			ds	40
+stack		equ	$
+
+		org		400h
+HBASE:	EQU	0C6h
+HDATA:	EQU	HBASE
+HADDR:	EQU	HBASE+1
+HMDSIB:	EQU	2048/secsize		;SECTORS IN MEMORY DRIVE DATA BLOCK
+HMDDSM:	EQU	((512-4)*spt)/HMDSIB
 ;
 MDRIVE:	JMP		HOME		;HOME
 		JMP		SELDSK		;SELECT DISK
@@ -61,7 +256,7 @@ MDRIVE:	JMP		HOME		;HOME
 		JMP		READ		;READ
 		JMP		WRITE		;WRITE
 		JMP		SECTRN		;SECT0R TRANSLATE
-
+;
 BIOSHOM:JMP		NOTHING		;HOME
 BIOSSEL:JMP		NOTHING		;SELECT DISK
 BIOSTRK:JMP		NOTHING		;SET TRACK
@@ -70,17 +265,18 @@ BIOSDMA:JMP		NOTHING		;SET DMA
 BIOSRED:JMP		NOTHING		;READ
 BIOSWRT:JMP		NOTHING		;WRITE
 BIOSTRN:JMP		NOTHING		;SECT0R TRANSLATE
-
-DRIVE:	DW		MDISKL		;Filled in by loader with MEMDRV-'A', M-DRIVE/H TYPE
+;
+DRIVE:	DW		MDISKL		;MEMDRV-'A'
+							;HDRIVE TYPE FOR MFORM
 							;DO NOT CHANGE VALUE OR LOCATION
 ;
 ;	Disk Parameter Block
 ;
-MD$DPB:						;SET FOR 1 BOARD, 8 SPT
+HMD$DPB:					;SET FOR 1 BOARD, 8 SPT
 		DW	spt				;SPT* (SECTORS PER TRACK, THIS AND DSM ...
 							;...MUST BE INCREASED FOR MORE BOARDS)
 		DB	4,15,1			;BSH, BLH, EXM
-		DW	DSM-1			;DSM*
+		DW	HMDDSM-1		;DSM*
 		DW	128-1			;DRM
 		DB	0C0h,00h		;AL0, AL1 (RESERVED DIR BLOCKS, MUST MATCH ...
 							; ... NUMBER OF DIRECTORY ENTRIES)
@@ -90,11 +286,11 @@ MD$DPB:						;SET FOR 1 BOARD, 8 SPT
 ;
 ;	Disk Parameter Header
 ;
-MD$DPH:
+HMD$DPH:
 		DW	0				;SECT0R TRANSLATE TABLE
 		DW	0,0,0			;SCRATCH
 		DW	BUFDIR			;DIRECT0RY BUFFER
-		DW	MD$DPB			;DPB BLOCK
+		DW	HMD$DPB			;DPB BLOCK
 		DW	0				;CHECKSUM VECTOR
 		DW	ALV				;ALL0CATI0N VECTOR
 ;
@@ -118,10 +314,10 @@ SELDSK:	LXI		H,CIOPB+0
 		JNZ		BIOSSEL		;IF NOT GO BACK TO BIOS
 		CMA					;A=-1
 		MOV		M,A			;SET MEMORY DRIVE AS SELECTED
-		LXI		H,MD$DPH	;GET DPH ADDRESS
+		LXI		H,HMD$DPH	;GET DPH ADDRESS
 		RET					;AND DONE
 ;
-;	H O M E
+;	H O M E120
 ;	Set current track to 0
 ;
 HOME:	LXI		H,0
@@ -175,14 +371,10 @@ SETDMA:	MOV		L,C
 ;           DE = Translation table address.
 ;           BC = Number to translate.
 ;
-;	EXIT	HL = Physical sector number.
-;
-SECTRN:	MOV		A,D			;DE=Translation table address
-		ORA		E			;Are we using translation?
-		JNZ		BIOSTRN		;Yes, Let BIOS translate
-		MOV		H,B			;No translation required
-		MOV		L,C			;HL=Physical sector number
-		RET					;And done
+SECTRN:	MOV		A,D
+		ORA		E
+		RZ					;No translation needed.
+		JMP		BIOSTRN		;Let BIOS translate.
 ;
 ;	R E A D
 ;
@@ -208,12 +400,9 @@ WRITE:	LDA		CIOPB+0		;SELFLG
 ;	Fall into MDFNL
 ;
 ;	MDFNL - Hard memory disk final command processing
-;	ENTRY --
-;			 CIOPB+0 = SELFLG
-;			 CIOPB+1 = COMMAND
+;	ENTRY -- CIOPB+0 = COMMAND
 ;			 CIOPB+2 = TRACK
 ;			 CIOPB+4 = SECTOR
-;			 CIOPB+5 = MRETRY
 ;
 MDFNL:	MVI		A,MRTRY		;Set retry count
 MDFNL1:	STA		CIOPB+5
@@ -226,7 +415,7 @@ MDFNL1:	STA		CIOPB+5
 		DAD		H			;*64
 		DAD		H			;*128
 		CALL	SETMDRV		;SET HDRIVE BOARD VIA <A>,<HL>
-		MVI		C,secsize	;<C> = 128 BYTE'S PER SECTOR
+		MVI		C, secsize	;<C> = 128 BYTE'S PER SECTOR
 		MOV		B,C			; also into <B> for parity check
 		LHLD	DMAADR		;DIRECTLY TO CPM BUFFER
 		LDA		CIOPB+1		;GET COMMAND
@@ -281,9 +470,8 @@ M$WRITE:MOV		A,M			;GET BYTE FROH BUFFER
 ;	AND THE SECTOR IN CIOPB+4
 PARITY:	LHLD	CIOPB+2		;Get track
 
-;	Set	M-DRIVE/H board to address In <HL>
-SETMDRV:
-		LDA		CIOPB+4		;Get sector, Starts at 0
+;	Set	M-DRIVE/H board to address In <A>,<HL>
+SETMDRV:LDA		CIOPB+4		;Get sector, Starts at 0
 		OUT		HADDR		;<A>: to M-DRIVE/H board
 		MOV		A,H			;<H>: is always 0 or 1
 		OUT		HADDR
@@ -295,6 +483,7 @@ MDISKL:	EQU		$-MDRIVE	;LENGTH OF MDRIVE BIOS
 ;
 ;	Flags and Buffers
 ;
+;
 ;	CIOPB+0 = SELFLG
 ;	CIOPB+1 = COMMAND
 ;	CIOPB+2 = TRACK
@@ -303,6 +492,6 @@ MDISKL:	EQU		$-MDRIVE	;LENGTH OF MDRIVE BIOS
 
 CIOPB:	DS		8			;COMMAND BUFFER,TRACK,SECTOR
 DMAADR:	DS		2			;ADDRESS OF DHA BUFFER
-ALV:	DS		(((DSM*spt)+7)/spt)+1
+ALV:	DS		(((HMDDSM*spt)+7)/spt)+1
 
 	END
