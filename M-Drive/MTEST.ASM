@@ -274,9 +274,10 @@ Read$Done:	mvi		a,0ffh
 RT$Block:	call	Set$mdrive
 			mvi		c,secsize
 Read$loop:	call	rndm		;Generate random number
-			mov		b,a			;Save as test byte
+			mov		e,a			;Save as test byte
 			in		hdata
-			cmp		b			;Good byte?
+			mov		d,a			;Save what read byte
+			cmp		e			;Good byte?
 			cnz		err$report	;No...
 			call	Bump$Address
 			dcr		c			;Block done?
@@ -285,8 +286,8 @@ Read$loop:	call	rndm		;Generate random number
 ;
 ; Report bad read
 ; Expects: C= -sector, B=Expected, A=Read
-err$report:	push	psw			;Save what was read
-			push	b			;save what was expected
+err$report:	push	b			;Save regs
+			push	d			;Save test/read
 			lda		oflag
 			ana		a
 			jnz		No$hdr
@@ -299,26 +300,30 @@ No$hdr:		call	Disp$Address
 			mvi		b,6
 			call	blanks
 ; Print Pattern Wrote
-			pop		b
-			mov		a,b
-			push	psw
+			pop		d			;Restore test/read
+			mov		a,e			;A=test byte wrote
 			call	Hexout
 			mvi		b,4
 			call	blanks
-			pop		psw
+			mov		a,e			;A=test byte wrote
 			call	Binout
 			mvi		b,5
 			call	blanks
 ; Print Pattern Read
-			pop		psw
-			push	psw
+			mov		a,d			;A=byte read
 			call	Hexout
 			mvi		b,4
 			call	blanks
-			pop		psw
+			mov		a,d			;A=byte read
+			call	Binout
+			mvi		b,5
+			call	blanks
+			mov		a,e			;A=test byte wrote
+			xra		d			;What bits to check
 			call	Binout
 			call	crlf
-; Page output
+			pop		b			;Restore regs
+; Page full output
 			lda		flags
 			ani		10000000b	;Test flag
 			ana		a
@@ -342,7 +347,6 @@ Page$full:	lda		oflag
 			rnz
 			mvi		a,0
 			sta		oflag
-;
 ; Check for program pause/terminate
 			lxi		d,cont$msg
 			call	print
@@ -698,7 +702,8 @@ pat$msg:	db	'Pattern: $'
 rnd$msg:	db	'Random $'
 delay$msg:	db	'  Delaying  $'
 cont$msg:	db	'Continue - ^C Exit$'
-header:		db	0Dh,0Ah,'Address     Wrote (binary)     Read  (binary)',0Dh,0Ah,'$'
+header:		db	0Dh,0Ah,'Address     Wrote (binary)     Read  (binary)'
+			db	'     - Bits -',0Dh,0Ah,'$'
 ;
 ; Vars
 flags:		db		0h
