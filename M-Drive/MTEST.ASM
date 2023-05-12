@@ -6,43 +6,36 @@
 ;   |0  0 [ Board ] [   U   |             M         |      L               ]|
 ;   |                       |                       |                       |
 ;   |                       |                       |                       |
-;	      A21..A19  A18...A16	Last Address+1
-;		  0	000		000			080000
-;		  1	001		001			100000
-;		  2	010		010			200000
-;		  3	011		011			180000
-;		  4	100		100			400000
-;		  5	101		101			280000
-;		  6	110		110			300000
-;		  7	111		111			380000
+;	    # A21..A19  A18...A16	Address Range
+;		1	000		000			000000 - 07FFFF
+;		2	001		001			000000 - 0FFFFF
+;		3	010		010			000000 - 17FFFF
+;		4	011		011			000000 - 1FFFFF
+;		5	100		100			000000 - 27FFFF
+;		6	101		101			000000 - 2FFFFF
+;		7	110		110			000000 - 37FFFF
+;		8	111		111			000000 - 3FFFFF
 ;		    ^^^
 ;		    +--- Board
 ;
 ;
-; MTEST [-Bsize][-P -Q] [-F[pat] | -R | -V[pat]]
-; -B=Block size
+; MTEST [-P -Q] [ -B[num] -F[pat] | -R | -V[pat] ]
 ; -F=Fixed pattern. Default pattern is random unless [pat]
 ; -R=Random pattern
 ; -V=Verify pattern. Default pattern is random unless [pat]
 ; -P=Non-paged, Checks for pause/control-C
 ; -Q=Quick, Skip F000 blocks
+; -B=Number of boards, 1 to 8
 ; No args runs Random,Fixed tests
 
 hdata		equ		0C6H		;Data port
 haddr		equ		0C7H		;Address port
 
-secsize		equ		128			;Bytes per sector
-blksize		equ		1024
-
-; BLOCK = (512*1024)/blksize
-
 BDOS		equ		005H
 
 			org		100H		;TPA
 
-			jmp		past
-boards:		db		1			;Number of M-DRIVE/H boards
-past:		lxi		sp,stack
+			lxi		sp,stack
 if 0
 	lxi	h,80h
 	mvi		m,5
@@ -73,22 +66,21 @@ scan:		inx		h
 			jz		scan
 			cpi		'$'
 			jz		All$Tests
-			cpi		'B'			;Block size
+			cpi		'B'			;Boards
 			jnz		Not$B
 			inx		h
 			dcr		c
-			jz		Bad$cmd
+			jz		Bad$cmd		;No arg?
 			mov		a,m
 			call	hexcon
-			jnc		Bad$cmd		;No block size
-			call	get$hex		;Get block size
-			mvi		e,0
-			mov		a,d
-			ora		e			;Test for 0000
-			jz		Bad$cmd
-			xchg
-			shld	block$size	;Set block size
-			xchg
+			jnc		scan$nxt	;Invalid value
+			call	get$hex		;Get boards
+			mov		a,e			;Get value
+			cpi		0			;0?
+			jz		Bad$cmd		;Yes
+			cpi		8+1			;>8?
+			jnc		Bad$cmd		;Yes
+			sta		boards		;Set value
 			jmp		scan$nxt
 Not$B:		cpi		'F'			;Fixed pattern
 			jnz		Not$F
@@ -147,8 +139,8 @@ Bad$cmd:	lxi		d,bad$msg
 ; Fixed M-Drive/H with random data and verify
 Random:		mvi		a,0			;Use random patterns
 			sta		pattern
-			call	clr$addr
-			call	Info$Block
+			call	Calc$Blks	;Find last block address
+			call	Info$Pats	;Info on test patterns
 			call	Test$RAM
 			jmp		0			;warm boot
 ;
@@ -160,8 +152,8 @@ Fixed:		mvi		a,0E5h		;Use fixed pattern
 			jz		Fixed$1
 			lda		value
 			sta		pattern		;Use fixed pattern
-Fixed$1		call	clr$addr
-			call	Info$Block
+Fixed$1:	call	Calc$Blks	;Find last block address
+			call	Info$Pats	;Info on test patterns
 			call	Test$RAM
 			jmp		0			;warm boot
 ;
@@ -173,15 +165,20 @@ Verify:		mvi		a,0			;Use random patterns
 			jz		Verify$1
 			lda		value
 			sta		pattern		;Use fixed pattern
-Verify$1:	call	clr$addr
-			call	Info$Block
-			call	Verify$RAM
+Verify$1:	call	Calc$Blks	;Find last block address
+			call	Setup$vals
+			call	Info$Pats	;Info on test patterns
+			call	Info$Vrfy	;Inform verify only
+			call	Read$mdrive	;Read and Test MDRIVE
 			jmp		0			;warm boot
 ;
 ; M-DRIVE/H memory test
 ; Fill M-DRIVE/H with test patterns
-Test$RAM:	call	Setup$vals
-			call	Save$addr	;Save start address of block
+; Repeats until user break (CONTROL-C)
+Test$RAM:
+			call	Setup$vals
+			call	Info$Pass
+			call	Info$Fill	;Inform filling MDRIVE
 			call	Fill$mdrive	;Fill MDRIVE
 ;
 ; Wait some time to check for memory fade
@@ -192,65 +189,93 @@ Test$RAM:	call	Setup$vals
 			call	Time$Delay
 ;
 ; Read M-DRIVE/H and verify test patterns
-			call	Setup$vals
-			call	Rest$addr	;Restore start address of block
+			call	Setup$vals	;Reset vals
+			call	Info$Test
 			call	Read$mdrive	;Read MDRIVE, verify data
 ;
-; Do next block if MDRIVE not completed
-			call	Drive$done
-			jnz		Test$RAM	;Tested all MDRIVE's
-			ret
-;
-; Verify M-Drive/H with user pattern
-verify$RAM:	call	Setup$vals
-			call	Read$mdrive	;Read and Test MDRIVE
+; Next pass
+			lhld	random$num
+			shld	seed		;Set new seed
 			call	crlf
+			lhld	pass
+			inx		h
+			shld	pass		;Update pass counter
+			jmp		Test$RAM
+
 ;
-; Do next block if MDRIVE not completed
-			call	Drive$done
-			jnz		Verify$RAM	;Read all MDRIVE's
+; Calculate size of MDRIVE from #boards
+; Save as block$size, and last address as Address+3
+Calc$Blks:	call	clr$addr	;Clear 22-bit address
+			lda		boards		;A=# boards: 1-8
+			lxi		h,0			;HL=0
+			lxi		d,1000h		;DE=4k
+Set$Size:	dad		d			;HL=HL+DE
+			dcr		a			;Count board
+			jnz		Set$Size
+			shld	block$size
 			ret
 ;
-; Clear 22-bit address, saved 22-bit address
+; Setup Fill Vals
+; Reset test pattern, address
+Setup$vals:
+			lhld	seed		;Init random number
+			shld	random$num
+			call	rndm		;Init random number
+;
+; Clear 22-bit address
 clr$addr:	lxi		h,address
-			mvi		c,2*3
+			mvi		c,3
 			xra		a
 clr$nxt:	mov		m,a
 			inx		h
 			dcr		c
 			jnz		clr$nxt
 			ret
-; Save 22-bit address
-Save$addr:	lxi		h,address
-			lxi		d,Saddress
-			jmp		Copy$addr
-; Restore saved 22-bit address
-Rest$addr:	lxi		h,Saddress
-			lxi		d,address
-Copy$addr:	mvi		c,3
-Copy$Nxt:	mov		a,m		;HL=Source
-			stax	d		;DE=Dest
-			inx		h
-			inx		d
-			dcr		c
-			jnz		Copy$Nxt
-			ret				;Done
 ;
-; Reset test pattern, counters, number of boards
-Setup$vals:	lhld	seed		;Init random number
-			shld	random$num
-			call	rndm		;Init random number
+; Fill M-DRIVE/H with test data
+Fill$mdrive:
+; Set M-DRIVE/H counters
+			xra		a
+			out		haddr		;U
+			out		haddr		;M
+			out		haddr		;L
 			lhld	block$size
-			shld	blk$cnt
+			xchg				;DE=Block size
+Fill$Nxt:	call	break$chk	;Asking for exit?
+			jz		Fill$Go
+			cpi		'C'-'@'		;Control-C
+			jnz		Fill$Go		;Nope
+			mvi		a,0ffh
+			out		0ffh		;Out to IMSAI lights
+			jmp		0			;Warm boot
+Fill$Go:	mvi		c,80h
+Fill$Byte:	mov		a,e
+			cma
+			out		0ffh		;Out to IMSAI lights
+			call	rndm		;A=test byte
+			out		hdata
+			dcr		c
+			jnz		Fill$Byte
+			dcx		d
+			mov		a,d
+			ora		e
+			jnz		Fill$Nxt	;Nope
+; All blocks have been done
+			mvi		a,0ffh
+			out		0ffh		;Out to IMSAI lights
 			ret
 ;
 ; Read and Test M-DRIVE/H
 Read$mdrive:
-			mvi		a,0
-			sta		oflag
 			call	break$chk	;Clear console
-			call	Info$Test
-;
+			xra		a			;A=0
+			sta		oflag
+; Set M-DRIVE/H counters
+			out		haddr		;U
+			out		haddr		;M
+			out		haddr		;L
+			lhld	block$size
+			xchg				;DE=Block size
 Read$Nxt:	call	break$chk	;Check for exit
 			jz		Read$Go
 			cpi		'C'-'@'		;Control-C
@@ -258,36 +283,35 @@ Read$Nxt:	call	break$chk	;Check for exit
 			mvi		a,0ffh
 			out		0ffh		;Out to IMSAI lights
 			jmp		0			;Warm boot
-Read$Go:	lda		address+1
+Read$Go:	mvi		c,80h
+Read$Byte:	mov		a,e
 			cma
 			out		0ffh		;Out to IMSAI lights
-			call	RT$Block	;One sector
-			call	Block$Done	;One block
-			jnz		Read$Nxt	;Nope
-
-; All blocks have been done
-Read$Done:	mvi		a,0ffh
-			out		0ffh		;Out to IMSAI lights
-			ret
-;
-; Read/Test Data Block
-RT$Block:	call	Set$mdrive
-			mvi		c,secsize
-Read$loop:	call	rndm		;Generate random number
-			mov		e,a			;Save as test byte
 			in		hdata
-			mov		d,a			;Save what read byte
-			cmp		e			;Good byte?
-			cnz		err$report	;No...
+			mov		l,a			;L=data read
+			call	rndm		;A=expected byte
+			mov		h,a
+			cmp		l			;Good byte?
+			cnz		Err$Report	;No...
 			call	Bump$Address
-			dcr		c			;Block done?
-			jnz		Read$loop	;No
+			dcr		c
+			jnz		Read$Byte
+			dcx		d
+			mov		a,d
+			ora		e
+			jnz		Read$Nxt	;Nope
+; All blocks have been done
+			mvi		a,0ffh
+			out		0ffh		;Out to IMSAI lights
 			ret
 ;
 ; Report bad read
-; Expects: C= -sector, B=Expected, A=Read
-err$report:	push	b			;Save regs
-			push	d			;Save test/read
+; Expects: L=Read, H=Expected
+; Saves: BC,DE
+Err$Report:
+			push	b
+			push	d
+			push	h			;Save pattern
 			lda		oflag
 			ana		a
 			jnz		No$hdr
@@ -300,29 +324,31 @@ No$hdr:		call	Disp$Address
 			mvi		b,6
 			call	blanks
 ; Print Pattern Wrote
-			pop		d			;Restore test/read
-			mov		a,e			;A=test byte wrote
+			pop		h			;Restore test/read
+			mov		a,h			;A=test byte wrote
 			call	Hexout
 			mvi		b,4
 			call	blanks
-			mov		a,e			;A=test byte wrote
+			mov		a,h			;A=test byte wrote
 			call	Binout
 			mvi		b,5
 			call	blanks
 ; Print Pattern Read
-			mov		a,d			;A=byte read
+			mov		a,l			;A=byte read
 			call	Hexout
 			mvi		b,4
 			call	blanks
-			mov		a,d			;A=byte read
+			mov		a,l			;A=byte read
 			call	Binout
 			mvi		b,5
 			call	blanks
-			mov		a,e			;A=test byte wrote
-			xra		d			;What bits to check
+			mov		a,l			;A=test byte wrote
+			xra		h			;What bits to check
 			call	Binout
 			call	crlf
-			pop		b			;Restore regs
+			pop		d			;Restore regs
+			pop		b
+
 ; Page full output
 			lda		flags
 			ani		10000000b	;Test flag
@@ -356,49 +382,6 @@ Pause:		call	break$chk
 			jnz		crlf		;Nope
 			jmp		0			;Warm boot
 ;
-; Fill M-DRIVE/H with test data
-Fill$mdrive:
-			call	Info$Fill
-Fill$Nxt:	call	break$chk	;Asking for exit?
-			jz		Fill$Go
-			cpi		'C'-'@'		;Control-C
-			jnz		Fill$Go		;Nope
-			mvi		a,0ffh
-			out		0ffh		;Out to IMSAI lights
-			jmp		0			;Warm boot
-Fill$Go:	lda		address+1
-			cma
-			out		0ffh		;Out to IMSAI lights
-			call	Write$Block
-			call	Block$Done
-			jnz		Fill$Nxt
-
-; All blocks have been done
-Fill$Done:
-			mvi		a,0ffh
-			out		0ffh		;Out to IMSAI lights
-			call	Disp$EAddress
-			ret
-;
-; Write data block
-Write$Block:
-			call	Set$mdrive	;Set MDRIVE memory address
-			mvi		c,secsize
-Write$loop:	call	rndm		;Generate test byte
-			out		hdata		;Send to MDRIVE
-			call	Bump$Address
-			dcr		c			;Block done?
-			jnz		Write$loop	;No
-			ret
-;
-; Return Acc=0 on end of block
-Block$Done:	lhld	blk$cnt
-			dcx		h
-			shld	blk$cnt
-			mov		a,h
-			ora		l
-			ret					;A=0 when block is done
-;
 ; Update 22-bit address
 Bump$Address:
 			lxi		h,address+2	;Point to L
@@ -411,54 +394,16 @@ Bump$Address:
 			inr		m			;A16..A22
 			ret
 ;
-; Return A=0 if all MDRIVE boards done
-Drive$Done:	lxi		h,address	;Point to U
-			lda		flags
-			ani		01000000b	;Test flag
-			jz		Drive$Nxt
-; Bump by 64K
-			mov		a,m			;Get U
-			ani		00111000B	;A21..A19
-			mov		b,a
-			ani		00000111B	;A18..A16
-			inr		a
-			ora		b
-			mov		m,a			;Set U
-;
-; Test for drive done
-Drive$Nxt:	lda		boards		;A=number of boards to test
-			rlc
-			rlc
-			rlc
-			ani		00111000B	;Mask bits, A21..A19
-			mov		b,a
-			mov		a,m			;Get U
-			ani		00111000B	;Mask bits A21..A19
-			cmp		b
-			ret					;A=0 when drive is done
-;
-; Send 22-bit starting address to M-DRIVE/H card
-; Uses: HL,A
-Set$mdrive:	lxi		h,address+2
-			mov		a,m			;A =A21..A16
-			out		haddr
-			dcx		h
-			mov		a,m			;A =A15..A08
-			out		haddr
-			dcx		h
-			mov		a,m			;A =A07..A00
-			out		haddr
-			ret
-;
 ; Generate random number in reg. A
 ; Uses: A
+; Saves: HL
 ; Returns: A
 rndm:
 			lda		flags
 			ani		00000001b	;Test flag
 			lda		pattern
 			rnz					;Use fixed pattern
-			push	h
+			push	h			;Save HL
 			lhld	random$num	;Get psudo-random number
 			mov		a,h			;Look at H
 			ani		0B4h		;Mask bits
@@ -472,7 +417,7 @@ peve:		mov		a,l			;Look at L
 			ral					;Rotate CY in
 			mov		h,a			;Restore H
 			shld	random$num	;Update psudo-random number
-			pop		h
+			pop		h			;Restore HL
 			ret					;A=random number
 ;
 ; Time Delay
@@ -489,21 +434,19 @@ Wait:		dcx		h
 			jnz		Time$Delay
 			ret
 ;
-Disp$EAddress:
-			mvi		a,'-'
-			call	conout
-			lxi		h,address
-			mov		a,m			;A =A19..A22
-			dcr		a
+; Display 000000-xxFFFF
+Disp$Block:
+			lxi		d,blkb$msg
+			call	print
+			lda		boards		;A=1 - 8
+			rlc
+			rlc
+			rlc
+			dcr		a			;Boards start at zero
+			ori		7h			;Bits A19-A16 = 1
 			call	Hexout
-			inx		h
-			mov		a,m			;A =A15..A08
-			dcr		a
-			call	Hexout
-			inx		h
-			mov		a,m			;A =A07..A00
-			dcr		a
-			jmp		Hexout
+			lxi		d,blke$msg
+			jmp		print
 ;
 ; Display 22-bit address
 Disp$Address:
@@ -517,29 +460,35 @@ Disp$Address:
 			mov		a,m			;A =A07..A00
 			jmp		Hexout
 ;
+Info$Pass:	lxi		d,pass$msg
+			call	print
+			lhld	pass
+			mov		a,h
+			call	Hexout
+			mov		a,l
+			jmp		Hexout
+;
 Info$Fill:	call	crlf
 			lxi		d,fill$msg
 			call	print
-			jmp		Disp$Address
+			jmp		Disp$Block
 ;
 Info$Test:	lxi		d,test$msg
 			jmp		print
 ;
-Info$block:	lxi		d,blk$msg
+Info$Vrfy:	lxi		d,vrfy$msg
 			call	print
-			lhld	block$size
-			mov		a,h
-			call	Hexout
-			mov		a,l
-			call	HexoutB
-			lxi		d,pat$msg
+			jmp		Disp$Block
+;
+Info$Pats:	lxi		d,pat$msg
 			call	print
 			lda		flags
 			ani		00000001b	;Test flag
 			jz		Info$Rndm
 			lda		pattern
-			call	HexoutB
+			call	Hexout
 			jmp		crlf
+;
 Info$Rndm:	lxi		d,rnd$msg
 			call	print
 ;	Fall into CRLF
@@ -695,9 +644,12 @@ break$chk:
 			ret
 ;
 bad$msg:	db	'Bad command line$'
-fill$msg:	db	'Filling block: $'
-test$msg:	db	'Testing block$'
-blk$msg:	db	'Block size: $'
+pass$msg:	db	'Pass: $'
+blkb$msg:	db	'block: 000000-$'
+blke$msg:	db	'FFFF$'
+fill$msg:	db	'Filling $'
+vrfy$msg:	db	'Verify $'
+test$msg:	db	'Testing$'
 pat$msg:	db	'Pattern: $'
 rnd$msg:	db	'Random $'
 delay$msg:	db	'  Delaying  $'
@@ -711,11 +663,11 @@ value:		db		0h
 pattern:	db		0h
 random$num:	dw		0h
 seed:		dw		5A5Ah		;Init random number
-block$size:	dw		blksize
-blk$cnt:	ds		2
+pass:		dw		0			;Number of passes
+boards:		db		1			;Number of M-DRIVE/H boards
+block$size:	ds		2
 oflag:		ds		1
-address:	ds		3
-Saddress:	ds		3
+Address:	ds		3
 			ds		40
 stack:		equ		$
 
