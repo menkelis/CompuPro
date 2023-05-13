@@ -7,23 +7,22 @@
                 ; IMDISK.HEX
                 ; R100
                 ; G0
-                ; SAVE 2 MDISK000.COM
+                ; ERA MDISK000.COM
+                ; SAVE 1 MDISK000.COM
                 ; ASM MDISK (ORG 0100h)
-                ; DDT
-                ; IMDISK.HEX
-                ; R
-                ; G0
-                ; SAVE 2 MDISK100.COM
+                ; LOAD MDISK
+                ; ERA MDISK100.COM
+                ; REN MDISK100.COM=MDISK.COM
                 
-                ;	ORG	0000h
- 0100           	ORG	0100h
+                
+ 0000           	ORG	0000h
+                ;	ORG	0100h
                 
                 ;
                 ;	M - D R I V E / H
                 ;
-                ;	The DPB is set for one M-DRIVE/H
-                ;	board, lf you have more boards you will have to adjust it
-                ;	accordingly.
+                ;	The DPB is set for one M-DRIVE/H board, and will be adjusted by the
+                ;	installer progam accordingly.
                 ;	Information such as sector, track, and DMA address are saved even
                 ;	if they are not intended for the memory drive.	The performance of
                 ;	any CP/M BIOS can be greatly enhanced by integrating this code
@@ -39,65 +38,56 @@
                 ;		1982 by CompuPro div. Godbout Electronics
                 ;
                 ;	Updated for use by self-installer by Michael Enkelis 2023
+                ;	Self-installer written by Michael Enkelis with some code
+                ;	written by Mike Douglas 2017
                 
- 00C6 =         HBASE:	EQU	0C6h
- 00C6 =         HDATA:	EQU	HBASE
- 00C7 =         HADDR:	EQU	HBASE+1
+ 00C6 =         HBASE	EQU	0C6h
+ 00C6 =         HDATA	EQU	HBASE
+ 00C7 =         HADDR	EQU	HBASE+1
                 
- 004D =         MEMDRV:	EQU	'M'				;SET AS DRIVE "M"
- 0006 =         F$RDAT:	EQU	6				;READ DATA
- 0005 =         F$WRT:	EQU	5				;WRITE DATA
- 000A =         MRTRY:	EQU	10				;MAX RETRY COUNT
- 0080 =         BUFDIR:	EQU	80H				;DIRECTORY BUFFER
+ 004D =         MEMDRV	EQU	'M'				;SET AS DRIVE "M"
+ 0008 =         spt		equ	8				;Sectors per track
+ 0080 =         secsize	equ	128				;Size of sector in bytes
+ 0000 =         NOTHING	equ	0
                 
- 0010 =         HMDSIB:	EQU	2048/128		;SECTORS IN MEMORY DRIVE DATA BLOCK
- 00FE =         HMDDSM:	EQU	((512-4)*8)/HMDSIB
+ 0010 =         SIB:	EQU	2048/secsize	;SECTORS IN MEMORY DRIVE DATA BLOCK
+ 00FE =         DSM:	EQU	((512-4)*spt)/SIB
                 ;
- 0100 C36501    MDRIVE:	JMP		HOME		;HOME
- 0103 C35101    		JMP		SELDSK		;SELECT DISK
- 0106 C36F01    		JMP		SETTRK		;SET TRACK
- 0109 C37701    		JMP		SETSEC		;SET SECTOR
- 010C C38001    		JMP		SETDMA		;SET DMA
- 010F C38E01    		JMP		READ		;READ
- 0112 C39D01    		JMP		WRITE		;WRITE
- 0115 C38801    		JMP		SECTRN		;SECT0R TRANSLATE
+ 0000 C35100    MDRIVE:	JMP		HOME		;HOME
+ 0003 C34100    		JMP		SELDSK		;SELECT DISK
+ 0006 C35A00    		JMP		SETTRK		;SET TRACK
+ 0009 C36200    		JMP		SETSEC		;SET SECTOR
+ 000C C36900    		JMP		SETDMA		;SET DMA
+ 000F C37900    		JMP		READ		;READ
+ 0012 C38300    		JMP		WRITE		;WRITE
+ 0015 C37100    		JMP		SECTRN		;SECT0R TRANSLATE
                 
- 0118 C30000    BIOSHOM:JMP		0000		;HOME
- 011B C30000    BIOSSEL:JMP		0000		;SELECT DISK
- 011E C30000    BIOSTRK:JMP		0000		;SET TRACK
- 0121 C30000    BIOSSEC:JMP		0000		;SET SECTOR
- 0124 C30000    BIOSDMA:JMP		0000		;SET DMA
- 0127 C30000    BIOSRED:JMP		0000		;READ
- 012A C30000    BIOSWRT:JMP		0000		;WRITE
- 012D C30000    BIOSTRN:JMP		0000		;SECT0R TRANSLATE
+ 0018 C30000    BIOSHOM:JMP		NOTHING		;HOME
+ 001B C30000    BIOSSEL:JMP		NOTHING		;SELECT DISK
+ 001E C30000    BIOSTRK:JMP		NOTHING		;SET TRACK
+ 0021 C30000    BIOSSEC:JMP		NOTHING		;SET SECTOR
+ 0024 C30000    BIOSDMA:JMP		NOTHING		;SET DMA
+ 0027 C30000    BIOSRED:JMP		NOTHING		;READ
+ 002A C30000    BIOSWRT:JMP		NOTHING		;WRITE
+ 002D C30000    BIOSTRN:JMP		NOTHING		;SECT0R TRANSLATE
                 
- 0130 0D01      DRIVE:	DW		MDISKL		;MEMDRV-'A'
-                							;HDRIVE TYPE FOR MFORM
+ 0030 EC00      DRIVE:	DW		MDISKL		;Filled in by loader with MEMDRV-'A', M-DRIVE/H TYPE
                 							;DO NOT CHANGE VALUE OR LOCATION
                 ;
                 ;	Disk Parameter Block
                 ;
-                HMD$DPB:					;SET FOR 1 BOARD, 8 SPT
- 0132 0800      		DW	8				;SPT (SECT0RS PER TRACK, THIS AND DSM ...
-                							;...HUST BE INCREASED FOR MORE BOARDS)
- 0134 040F01    		DB	4,15,1			;BSH, BLH, EXM
- 0137 FD007F00  		DW	HMDDSM-1,128-1	;DSM , DRM
- 013B C000      		DB	0C0h,00h		;AL0, AL1 (RESERVED DIR BLOCKS, MUST MATCH ...
+                MD$DPB:						;SET FOR 1 BOARD, 8 SPT
+ 0032 0800      		DW	spt				;SPT* (SECTORS PER TRACK, THIS AND EXM, DSM ...
+                							;...MUST BE CHANGED FOR MORE BOARDS)
+ 0034 040F      		DB	4,15			;BSH, BLH
+ 0036 01        		DB	1				;EXM*
+ 0037 FD00      		DW	DSM-1			;DSM*
+ 0039 7F00      		DW	128-1			;DRM
+ 003B C000      		DB	0C0h,00h		;AL0, AL1 (RESERVED DIR BLOCKS, MUST MATCH ...
                 							; ... NUMBER OF DIRECTORY ENTRIES)
- 013D 0000      		DW	0				;CKS (CHECK SUM), This is always zero.
- 013F 0400      		DW	4				;OFF (NUMBER OF RESERVED TRAGKS FOR PARITY CHECK
+ 003D 0000      		DW	0				;CKS (CHECK SUM), This is always zero.
+ 003F 0400      		DW	4				;OFF (NUMBER OF RESERVED TRAGKS FOR PARITY CHECK
                 							;	THIS IS ALWAYS 4)
-                ;
-                ;	Disk Parameter Header
-                ;
-                HMD$DPH:
- 0141 0000      		DW	0				;SECT0R TRANSLATE TABLE
- 0143 0000000000		DW	0,0,0			;SCRATCH
- 0149 8000      		DW	BUFDIR			;DIRECT0RY BUFFER
- 014B 3201      		DW	HMD$DPB			;DPB BLOCK
- 014D 0000      		DW	0				;CHECKSUM VECTOR
- 014F 1902      		DW	ALV				;ALL0CATI0N VECTOR
-                ;
                 ;
                 ;	S E L E C T   D I S K   D RI V E
                 
@@ -110,23 +100,23 @@
                 ;	EXIT -- HL = DPH address of the memory drive.
                 ;	        If memory drive not selected, control is passed to BIOS
                 ;
- 0151 AF        SELDSK:	XRA		A			;CLEAR A
- 0152 320D02    		STA		SELFLG		;CLEAR MEMORY DRIVE FLAG
- 0155 3A3001    		LDA		DRIVE		;
- 0158 B9        		CMP		C			;IS MEMORY DRIVE SELECTED
- 0159 C21B01    		JNZ		BIOSSEL		;IF NOT GO BACK TO BIOS
- 015C 3EFF      		MVI		A,0FFH
- 015E 320D02    		STA		SELFLG		;SET MEMORY DRIVE AS SELECTED
- 0161 214101    		LXI		H,HMD$DPH	;GET DPH ADDRESS
- 0164 C9        		RET					;AND DONE
+ 0041 21D600    SELDSK:	LXI		H,SELFLG
+ 0044 AF        		XRA		A			;CLEAR A
+ 0045 77        		MOV		M,A			;CLEAR MEMORY DRIVE FLAG
+ 0046 3A3000    		LDA		DRIVE		;
+ 0049 91        		SUB		C			;IS MEMORY DRIVE SELECTED
+ 004A C21B00    		JNZ		BIOSSEL		;IF NOT GO BACK TO BIOS
+ 004D 2F        		CMA					;A=-1
+ 004E 77        		MOV		M,A			;SELFLG= -1, SET MEMORY DRIVE AS SELECTED
+ 004F 23        		INX		H			;<HL> = DPH ADDRESS
+ 0050 C9        		RET					;AND DONE
                 ;
                 ;	H O M E
                 ;	Set current track to 0
                 ;
- 0165 AF        HOME:	XRA		A
- 0166 321102    		STA		CIOPB+2		;SET TRACK AS 0
- 0169 321202    		STA		CIOPB+3
- 016C C31801    		JMP		BIOSHOM		;ON TO BIOS
+ 0051 210000    HOME:	LXI		H,0
+ 0054 22E800    		SHLD	TRACK		;SET TRACK AS 0
+ 0057 C31800    		JMP		BIOSHOM		;ON TO BIOS
                 ;
                 ;	S  E  T   T R A C K
                 ;
@@ -136,10 +126,10 @@
                 ;
                 ;	ENTRY -- BC = Track number.
                 ;
- 016F 69        SETTRK:	MOV		L,C
- 0170 60        		MOV		H,B
- 0171 221102    		SHLD	CIOPB+2
- 0174 C31E01    		JMP		BIOSTRK		;ON TO BIOS
+ 005A 69        SETTRK:	MOV		L,C
+ 005B 60        		MOV		H,B
+ 005C 22E800    		SHLD	TRACK
+ 005F C31E00    		JMP		BIOSTRK		;ON TO BIOS
                 ;
                 ;	S E T	S E C T 0 R
                 ;
@@ -149,11 +139,9 @@
                 ;
                 ;	ENTRY -- BC = Sector number.
                 
- 0177 69        SETSEC:	MOV		L,C
- 0178 60        		MOV		H,B
- 0179 23        		INX		H			;+1 TO MAKE LIKE FLOPPIES (1-26)
- 017A 221302    		SHLD	CIOPB+4
- 017D C32101    		JMP		BIOSSEC		;ON TO BIOS
+ 0062 79        SETSEC:	MOV		A,C
+ 0063 32E700    		STA		SECTOR		;Set sector
+ 0066 C32100    		JMP		BIOSSEC		;ON TO BIOS
                 ;
                 ;	S E T   D M A   A D D R E S S
                 ;
@@ -164,10 +152,10 @@
                 ;
                 ;	ENTRY -- BC = Disk memory address.
                 
- 0180 69        SETDMA:	MOV		L,C
- 0181 60        		MOV		H,B
- 0182 221702    		SHLD	DMAADR
- 0185 C32401    		JMP		BIOSDMA		;ON TO BIOS
+ 0069 69        SETDMA:	MOV		L,C
+ 006A 60        		MOV		H,B
+ 006B 22EA00    		SHLD	DMAADR		;Set DMA
+ 006E C32400    		JMP		BIOSDMA		;ON TO BIOS
                 ;
                 ;	S  E  C  T O R   T R A N S L A T E
                 ;
@@ -177,59 +165,57 @@
                 ;           DE = Translation table address.
                 ;           BC = Number to translate.
                 ;
- 0188 7A        SECTRN:	MOV		A,D
- 0189 B3        		ORA		E
- 018A C8        		RZ					;No translation needed.
- 018B C32D01    		JMP		BIOSTRN		;Let BIOS translate.
+                ;	EXIT	HL = Physical sector number.
+                ;
+ 0071 7A        SECTRN:	MOV		A,D			;DE=Translation table address
+ 0072 B3        		ORA		E			;Are we using translation?
+ 0073 C22D00    		JNZ		BIOSTRN		;Yes, Let BIOS translate
+ 0076 60        		MOV		H,B			;No translation required
+ 0077 69        		MOV		L,C			;HL=Physical sector number
+ 0078 C9        		RET					;And done
                 ;
                 ;	R E A D
                 ;
                 ;	Read the currently selected track,sector from the currently
                 ;	selected drive.
                 ;
- 018E 3A0D02    READ:	LDA		SELFLG
- 0191 B7        		ORA		A			;IS MEMORY DRIVE SELECTED
- 0192 CA2701    		JZ		BIOSRED		;ON TO BIOS
- 0195 3E06      		MVI		A,F$RDAT	;MUST WANT THR HEMORY DRIVE
- 0197 320F02    		STA		CIOPB		;TO COMMAND BUFFER
- 019A C3A901    		JMP		HMDFNL		;AND GO PROCESS
+ 0079 3AD600    READ:	LDA		SELFLG		;SELFLG= -1 if selected
+ 007C A7        		ANA		A			;IS MEMORY DRIVE SELECTED
+ 007D CA2700    		JZ		BIOSRED		;ON TO BIOS
+ 0080 C38B00    		JMP		MDFNL		;A= -1 for READ
                 ;
                 ;	W R I T E
                 ;
                 ;	Write to the current1y selected drive at the current track
                 ;	and sector.
                 ;
- 019D 3A0D02    WRITE:	LDA		SELFLG
- 01A0 B7        		ORA		A			;IS MEMORY DRIVE SELECTED
- 01A1 CA2A01    		JZ		BIOSWRT		;ON TO BIOS
- 01A4 3E05      		MVI		A,F$WRT		;SET COMMAND AS WRITE
- 01A6 320F02    		STA		CIOPB
-                ;		JMP		HMDFNL		;AND GO PROCESS
+ 0083 3AD600    WRITE:	LDA		SELFLG		;SELFLG= -1 if selected
+ 0086 A7        		ANA		A			;IS MEMORY DRIVE SELECTED
+ 0087 CA2A00    		JZ		BIOSWRT		;ON TO BIOS
+ 008A AF        		XRA		A			;A= 0 for WRITE
+                
+                ;	Fall into MDFNL
                 ;
-                ;	HMDFNL - Hard memory disk final command processing
-                ;	ENTRY -- CIOPB+0 = COMMAND
-                ;			 CIOPB+2 = TRACK
-                ;			 CIOPB+4 = SECTOR
+                ;	MDFNL - Hard memory disk final command processing
+                ;	ENTRY: <A> = Command. -1 = READ, 0 = WRITE
                 ;
- 01A9 3E0A      HMDFNL:	MVI		A,MRTRY		;Set retry count
- 01AB 320E02    		STA		RTRY
- 01AE 2A1102    HMDFNL1:LHLD	CIOPB+2		;GET TRACK
- 01B1 29        		DAD		H			;*2
- 01B2 29        		DAD		H			;*4
- 01B3 29        		DAD		H			;*8
- 01B4 29        		DAD		H			;*l6
- 01B5 29        		DAD		H			;*32
- 01B6 29        		DAD		H			;*64
- 01B7 29        		DAD		H			;*128
- 01B8 3A1302    		LDA		CIOPB+4		;GET SECTOR
- 01BB 3D        		DCR		A			;STARTS AT 0
- 01BC CD0402    		CALL	SETMDRV		;SET HDRIVE BOARD VIA <A>,<HL>
- 01BF 0E80      		MVI		C, 128		;<C> = 128 BYTE'S PER SECTOR
- 01C1 41        		MOV		B,C			; also into <B> for parity check
- 01C2 2A1702    		LHLD	DMAADR		;DIRECTLY TO CPM BUFFER
- 01C5 3A0F02    		LDA		CIOPB		;GET COMMAND
- 01C8 FE06      		CPI		F$RDAT		;
- 01CA C2EB01    		JNZ		M$WRITE		;IF WRITE COMMAND JUMP
+ 008B 47        MDFNL:	MOV		B,A			;Save command
+ 008C 2AE800    		LHLD	TRACK		;GET TRACK
+ 008F 54        		MOV		D,H			;
+ 0090 5D        		MOV		E,L			;Save untranslated TRACK
+ 0091 29        		DAD		H			;*2
+ 0092 29        		DAD		H			;*4
+ 0093 29        		DAD		H			;*8
+ 0094 29        		DAD		H			;*l6
+ 0095 29        		DAD		H			;*32
+ 0096 29        		DAD		H			;*64
+ 0097 29        		DAD		H			;*128
+ 0098 CDCA00    		CALL	SETMDRV		;SET M-DRIVE/H BOARD VIA <HL>
+ 009B 2AEA00    		LHLD	DMAADR		;DIRECTLY TO CPM BUFFER
+ 009E 0E80      		MVI		C,secsize	;<C> = 128 BYTE'S PER SECTOR
+ 00A0 04        		INR		B			;<B>=0 READ [Z=1], 1 WRITE [Z=0]
+ 00A1 41        		MOV		B,C			;Set <B> for parity check
+ 00A2 C2B700    		JNZ		M$WRITE		;IF WRITE COMMAND JUMP
                 ;
                 ;		Fall into M$READ
                 ;
@@ -238,24 +224,19 @@
                 ;	ENTRY -- <C> IS NUMBER OF BYTES TO MOVE
                 ;			 <HL> IS DMA BUFFER TO PUT DATA
                 ;
-                ;	EXIT -- <A> = 0 No errors, 1 READ error.
- 01CD DBC6      M$READ:	IN		HDATA		;GET DATA BYTE
- 01CF 77        		MOV		M,A			;PUT TO DMA BLOCK
- 01D0 80        		ADD		B			;ADD UP PARITY BYTE
- 01D1 47        		MOV		B,A			; AND SAVE
- 01D2 23        		INX		H			;UP POINTER
- 01D3 0D        		DCR		C			;C0UNT THIS MOVE
- 01D4 C2CD01    		JNZ		M$READ		;AND DO AGAIN
- 01D7 CDFD01    		CALL	PARITY		;D0 PARITY CHECK
- 01DA DBC6      		IN		HDATA		;GET PARITY BYTE
- 01DC 90        		SUB		B			; 0 IF NO ERROR
- 01DD C8        		RZ					;	THEN RETURN
- 01DE 3A0E02    		LDA		RTRY		;GET RETRY COUNT
- 01E1 3D        		DCR		A			;
- 01E2 320E02    		STA		RTRY		;REPLACE WITH NEW COUNT
- 01E5 C2AE01    		JNZ		HMDFNL1		;
- 01E8 F601      		ORI		1			;Set ERROR flag
- 01EA C9        		RET					;RETURN WHEN DONE
+                ;	EXIT -- <A> = 0 No errors, > 0 READ error.
+ 00A5 DBC6      M$READ:	IN		HDATA		;GET DATA BYTE
+ 00A7 77        		MOV		M,A			;PUT TO DMA BLOCK
+ 00A8 23        		INX		H			;UP POINTER
+ 00A9 80        		ADD		B			;ADD UP PARITY BYTE
+ 00AA 47        		MOV		B,A			; AND SAVE
+ 00AB 0D        		DCR		C			;C0UNT THIS MOVE
+ 00AC C2A500    		JNZ		M$READ		;AND DO AGAIN
+ 00AF EB        		XCHG				;<HL> = untranslated TRACK
+ 00B0 CDCA00    		CALL	SETMDRV		;SELECT PARITY BYTE LOCATION VIA <HL>
+ 00B3 DBC6      		IN		HDATA		;GET PARITY BYTE
+ 00B5 90        		SUB		B			; 0 IF NO ERROR
+ 00B6 C9        		RET					;	THEN RETURN
                 ;
                 ;	PUT A BLOCK OF DATA INTO M-DRIVE/H BOARD
                 ;	ADDRESS IS ALREADY SELECTED.
@@ -263,42 +244,50 @@
                 ;			 <HL> IS DMA BUFFER TO GET DATA FROM
                 ;
                 ;	EXIT -- <A> = 0 No errors.
- 01EB 7E        M$WRITE:MOV		A,M			;GET BYTE FROH BUFFER
- 01EC D3C6      		OUT		HDATA		;TO MDRIVE BOARD
- 01EE 80        		ADD		B			;ADD UP PARITY BYTE
- 01EF 47        		MOV		B,A			; AND SAVE
- 01F0 23        		INX		H
- 01F1 0D        		DCR		C			;COUNT THIS MOVE
- 01F2 C2EB01    		JNZ		M$WRITE		;IF DONE WITH 128 OR <C> COUNT
- 01F5 CDFD01    		CALL	PARITY		;SELECT PARITY BYTE LOCATION
- 01F8 78        		MOV		A,B
- 01F9 D3C6      		OUT		HDATA		;WRITE PARITY BYTE TO HEMORY DISK
- 01FB AF        		XRA		A			;AND SHOW NO ERROR
- 01FC C9        		RET					;RETURN
+ 00B7 7E        M$WRITE:MOV		A,M			;GET BYTE FROH BUFFER
+ 00B8 23        		INX		H			;UP POINTER
+ 00B9 D3C6      		OUT		HDATA		;TO MDRIVE BOARD
+ 00BB 80        		ADD		B			;ADD UP PARITY BYTE
+ 00BC 47        		MOV		B,A			; AND SAVE
+ 00BD 0D        		DCR		C			;COUNT THIS MOVE
+ 00BE C2B700    		JNZ		M$WRITE		;AND DO AGAIN
+ 00C1 EB        		XCHG				;<HL> = untranslated TRACK
+ 00C2 CDCA00    		CALL	SETMDRV		;SELECT PARITY BYTE LOCATION
+ 00C5 78        		MOV		A,B
+ 00C6 D3C6      		OUT		HDATA		;WRITE PARITY BYTE TO HEMORY DISK
+ 00C8 AF        		XRA		A			;AND SHOW NO ERROR
+ 00C9 C9        		RET					;RETURN
                 ;
-                ;	FIND LOCATION IF PARITY BYTE FOR TRACK IN CIOPB+2
-                ;	AND THE SECTOR IN CIOPB+4
- 01FD 3A1302    PARITY:	LDA		CIOPB+4		;Get sector
- 0200 3D        		DCR		A			;Bias
- 0201 2A1102    		LHLD	CIOPB+2		;Get track
-                
-                ;	Set	M-DRIVE/H board to address In <A>,<HL>
- 0204 D3C7      SETMDRV:OUT		HADDR		;<A>: to M-DRIVE/H board
- 0206 7C        		MOV		A,H			;<H>: is always 0 or 1
- 0207 D3C7      		OUT		HADDR
- 0209 7D        		MOV		A,L			;<L>: Upper bit's picks track 0-3
- 020A D3C7      		OUT		HADDR		; remainder picks sector and byte
- 020C C9        		RET
-                ;
- 010D =         MDISKL:	EQU		$-MDRIVE	;LENGTH OF MDRIVE BIOS
+                ;	Set	M-DRIVE/H board to address In <HL>
+                SETMDRV:
+ 00CA 3AE700    		LDA		SECTOR		;Get sector, Starts at 0
+ 00CD D3C7      		OUT		HADDR		;<A>: to M-DRIVE/H board
+ 00CF 7C        		MOV		A,H			;<H>: is always 0 or 1
+ 00D0 D3C7      		OUT		HADDR
+ 00D2 7D        		MOV		A,L			;<L>: Upper bit's picks track 0-3
+ 00D3 D3C7      		OUT		HADDR		; remainder picks sector and byte
+ 00D5 C9        		RET
                 ;
                 ;	Flags and Buffers
                 ;
- 020D           SELFLG:	DS		1			;DISK SELECT FLAG
- 020E           RTRY:	DS		1			;RETRY COUNTER
- 020F           CIOPB:	DS		8			;COMMAND BUFFER,TRACK,SECTOR
- 0217           DMAADR:	DS		2			;ADDRESS OF DHA BUFFER
- 0219           ALV:	DS		(((HMDDSM*8)+7)/8)+1
+ 00D6 00        SELFLG:	DB		0			;0 = Not selected, -1 Selected
+                ;
+                ;	Disk Parameter Header
+                ;
+ 00D7 0000      MD$DPH:	DW	0				;SECT0R TRANSLATE TABLE
+ 00D9 0000000000		DW	0,0,0			;SCRATCH
+ 00DF EC00      		DW	BUFDIR			;DIRECT0RY BUFFER
+ 00E1 3200      		DW	MD$DPB			;DPB BLOCK
+ 00E3 0000      		DW	0				;CHECKSUM VECTOR
+ 00E5 6C01      		DW	ALV				;ALL0CATI0N VECTOR
+                ;
+ 00E7 00        SECTOR:	DB		0			;SECTOR: 0-255
+ 00E8 0000      TRACK:	DW		0			;TRACK:  0-65535
+ 00EA 0000      DMAADR:	DW		0			;ADDRESS OF DMA BUFFER
+                ;	End of initialized code
+ 00EC =         MDISKL:	EQU		$-MDRIVE	;LENGTH OF MDRIVE BIOS
+ 00EC           BUFDIR:	DS		80H			;DIRECTORY BUFFER
+ 016C           ALV:	DS		(((DSM*spt)+7)/spt)+1
                 
- 0318           	END
-
+ 026B           	END
+
