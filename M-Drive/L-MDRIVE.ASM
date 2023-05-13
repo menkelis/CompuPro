@@ -91,12 +91,16 @@ HMDTEST:
 		MOV		A,C			;Board not found
 		CPI		0			;See if no boards present
 		JZ		NOT$FND		;If no boards found
+; BSH=4, BLM=15, BLS=2,048
+; EXM=1 if DSM < 256
+; EXM=0 if DSM > 255
 		CPI		31			;See if 2 megabytes or more
 		JNC		HMD4K		;Set DSM only if so, rest of DPB is set
 		CPI		8			;See if only 512K
 		JNZ		HMD1 		;If not 512k, don't change EXM
-		XRA		A
-		STA		EXM			;Set EXM to 0 if only one board
+; Set EXM
+		MVI		A,1
+		STA		EXM			;Set EXM to 1 if only one board
 ; Set DIRS = 128, Reserving two blocks
 HMD1:	XCHG				;Save DSM in "D,E"
 		LXI		H,128-1 	;
@@ -104,6 +108,7 @@ HMD1:	XCHG				;Save DSM in "D,E"
 		MVI 	A,0C0H		;
 		STA		AL0			;Set number of reserved blocks to match
 		XCHG				;Put DSM back in "H,L"
+; Set DSM to disk size - 1
 HMD4K:	DCX		H
 		SHLD	DSM			;Save corrected disk size allocation
 HMDEND:	RET
@@ -613,12 +618,12 @@ err6:	db	'NO M-DRIVE/H BOARDS FOUND'
 HM$MSG:	DB		'0'
 		DB		' M-Drive/H$' ;Show active M-DRIVE/H boards
 ;
-; DPB
+; DPB for 8 boards
 SPT:	DW		0040H		;SPT
-		DB		004H,00FH	;BSH, BLH
-EXM:	DB		001H		;EXM
+		DB		4,15		;BSH, BLH - set BLS=2,048
+EXM:	DB		0			;EXM      - set 0 if DSM>255, 1 if DSM<256
 DSM:	DW		03EFH		;DSM-1
-DIRS:	DW		01FFH		;DIRS-1
+DIRS:	DW		512-1		;DIRS-1
 AL0:	DB		0FFH,000H	;AL0, AL1
 		DW		000H		;CKS
 		DW		004H		;OFF
