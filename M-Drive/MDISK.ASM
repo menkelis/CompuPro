@@ -44,8 +44,6 @@ HDATA	EQU	HBASE
 HADDR	EQU	HBASE+1
 
 MEMDRV	EQU	'M'				;SET AS DRIVE "M"
-MRTRY	EQU	10				;MAX RETRY COUNT
-BUFDIR	EQU	80H				;DIRECTORY BUFFER
 spt		equ	8				;Sectors per track
 secsize	equ	128				;Size of sector in bytes
 NOTHING	equ	0
@@ -77,9 +75,10 @@ DRIVE:	DW		MDISKL		;Filled in by loader with MEMDRV-'A', M-DRIVE/H TYPE
 ;	Disk Parameter Block
 ;
 MD$DPB:						;SET FOR 1 BOARD, 8 SPT
-		DW	spt				;SPT* (SECTORS PER TRACK, THIS AND DSM ...
-							;...MUST BE INCREASED FOR MORE BOARDS)
-		DB	4,15,1			;BSH, BLH, EXM
+		DW	spt				;SPT* (SECTORS PER TRACK, THIS AND EXM, DSM ...
+							;...MUST BE CHANGED FOR MORE BOARDS)
+		DB	4,15			;BSH, BLH
+		DB	1				;EXM*
 		DW	DSM-1			;DSM*
 		DW	128-1			;DRM
 		DB	0C0h,00h		;AL0, AL1 (RESERVED DIR BLOCKS, MUST MATCH ...
@@ -87,17 +86,6 @@ MD$DPB:						;SET FOR 1 BOARD, 8 SPT
 		DW	0				;CKS (CHECK SUM), This is always zero.
 		DW	4				;OFF (NUMBER OF RESERVED TRAGKS FOR PARITY CHECK
 							;	THIS IS ALWAYS 4)
-;
-;	Disk Parameter Header
-;
-MD$DPH:
-		DW	0				;SECT0R TRANSLATE TABLE
-		DW	0,0,0			;SCRATCH
-		DW	BUFDIR			;DIRECT0RY BUFFER
-		DW	MD$DPB			;DPB BLOCK
-		DW	0				;CHECKSUM VECTOR
-		DW	ALV				;ALL0CATI0N VECTOR
-;
 ;
 ;	S E L E C T   D I S K   D RI V E
 
@@ -110,22 +98,22 @@ MD$DPH:
 ;	EXIT -- HL = DPH address of the memory drive.
 ;	        If memory drive not selected, control is passed to BIOS
 ;
-SELDSK:	LXI		H,CIOPB+0
+SELDSK:	LXI		H,SELFLG
 		XRA		A			;CLEAR A
 		MOV		M,A			;CLEAR MEMORY DRIVE FLAG
 		LDA		DRIVE		;
 		SUB		C			;IS MEMORY DRIVE SELECTED
 		JNZ		BIOSSEL		;IF NOT GO BACK TO BIOS
 		CMA					;A=-1
-		MOV		M,A			;SET MEMORY DRIVE AS SELECTED
-		LXI		H,MD$DPH	;GET DPH ADDRESS
+		MOV		M,A			;SELFLG= -1, SET MEMORY DRIVE AS SELECTED
+		INX		H			;<HL> = DPH ADDRESS
 		RET					;AND DONE
 ;
 ;	H O M E
 ;	Set current track to 0
 ;
 HOME:	LXI		H,0
-		SHLD	CIOPB+2		;SET TRACK AS 0
+		SHLD	TRACK		;SET TRACK AS 0
 		JMP		BIOSHOM		;ON TO BIOS
 ;
 ;	S  E  T   T R A C K
@@ -138,7 +126,7 @@ HOME:	LXI		H,0
 ;
 SETTRK:	MOV		L,C
 		MOV		H,B
-		SHLD	CIOPB+2
+		SHLD	TRACK
 		JMP		BIOSTRK		;ON TO BIOS
 ;
 ;	S E T	S E C T 0 R
@@ -150,7 +138,7 @@ SETTRK:	MOV		L,C
 ;	ENTRY -- BC = Sector number.
 
 SETSEC:	MOV		A,C
-		STA		CIOPB+4		;Set sector
+		STA		SECTOR		;Set sector
 		JMP		BIOSSEC		;ON TO BIOS
 ;
 ;	S E T   D M A   A D D R E S S
@@ -189,35 +177,30 @@ SECTRN:	MOV		A,D			;DE=Translation table address
 ;	Read the currently selected track,sector from the currently
 ;	selected drive.
 ;
-READ:	LDA		CIOPB+0		;SELFLG
-		ORA		A			;IS MEMORY DRIVE SELECTED
+READ:	LDA		SELFLG		;SELFLG= -1 if selected
+		ANA		A			;IS MEMORY DRIVE SELECTED
 		JZ		BIOSRED		;ON TO BIOS
-		CMA					;A=0 for READ
-		STA		CIOPB+1		;TO COMMAND BUFFER
-		JMP		MDFNL		;AND GO PROCESS
+		JMP		MDFNL		;A= -1 for READ
 ;
 ;	W R I T E
 ;
 ;	Write to the current1y selected drive at the current track
 ;	and sector.
 ;
-WRITE:	LDA		CIOPB+0		;SELFLG
-		ORA		A			;IS MEMORY DRIVE SELECTED
+WRITE:	LDA		SELFLG		;SELFLG= -1 if selected
+		ANA		A			;IS MEMORY DRIVE SELECTED
 		JZ		BIOSWRT		;ON TO BIOS
-		STA		CIOPB+1		;A=-1 for WRITE
+		XRA		A			;A= 0 for WRITE
+
 ;	Fall into MDFNL
 ;
 ;	MDFNL - Hard memory disk final command processing
-;	ENTRY --
-;			 CIOPB+0 = SELFLG
-;			 CIOPB+1 = COMMAND
-;			 CIOPB+2 = TRACK
-;			 CIOPB+4 = SECTOR
-;			 CIOPB+5 = MRETRY
+;	ENTRY: <A> = Command. -1 = READ, 0 = WRITE
 ;
-MDFNL:	MVI		A,MRTRY		;Set retry count
-MDFNL1:	STA		CIOPB+5
-		LHLD	CIOPB+2		;GET TRACK
+MDFNL:	MOV		B,A			;Save command
+		LHLD	TRACK		;GET TRACK
+		MOV		D,H			;
+		MOV		E,L			;Save untranslated TRACK
 		DAD		H			;*2
 		DAD		H			;*4
 		DAD		H			;*8
@@ -225,12 +208,11 @@ MDFNL1:	STA		CIOPB+5
 		DAD		H			;*32
 		DAD		H			;*64
 		DAD		H			;*128
-		CALL	SETMDRV		;SET HDRIVE BOARD VIA <A>,<HL>
-		MVI		C,secsize	;<C> = 128 BYTE'S PER SECTOR
-		MOV		B,C			; also into <B> for parity check
+		CALL	SETMDRV		;SET M-DRIVE/H BOARD VIA <HL>
 		LHLD	DMAADR		;DIRECTLY TO CPM BUFFER
-		LDA		CIOPB+1		;GET COMMAND
-		ANA		A			;A=0 for READ or -1 for WRITE
+		MVI		C,secsize	;<C> = 128 BYTE'S PER SECTOR
+		INR		B			;<B>=0 READ [Z=1], 1 WRITE [Z=0]
+		MOV		B,C			;Set <B> for parity check
 		JNZ		M$WRITE		;IF WRITE COMMAND JUMP
 ;
 ;		Fall into M$READ
@@ -240,23 +222,19 @@ MDFNL1:	STA		CIOPB+5
 ;	ENTRY -- <C> IS NUMBER OF BYTES TO MOVE
 ;			 <HL> IS DMA BUFFER TO PUT DATA
 ;
-;	EXIT -- <A> = 0 No errors, 1 READ error.
+;	EXIT -- <A> = 0 No errors, > 0 READ error.
 M$READ:	IN		HDATA		;GET DATA BYTE
 		MOV		M,A			;PUT TO DMA BLOCK
+		INX		H			;UP POINTER
 		ADD		B			;ADD UP PARITY BYTE
 		MOV		B,A			; AND SAVE
-		INX		H			;UP POINTER
 		DCR		C			;C0UNT THIS MOVE
 		JNZ		M$READ		;AND DO AGAIN
-		CALL	PARITY		;D0 PARITY CHECK
+		XCHG				;<HL> = untranslated TRACK
+		CALL	SETMDRV		;SELECT PARITY BYTE LOCATION VIA <HL>
 		IN		HDATA		;GET PARITY BYTE
 		SUB		B			; 0 IF NO ERROR
-		RZ					;	THEN RETURN
-		LDA		CIOPB+5		;GET RETRY COUNT
-		DCR		A			;REPLACE WITH NEW COUNT
-		JNZ		MDFNL1		;
-		ORI		1			;Set ERROR flag
-		RET					;RETURN WHEN DONE
+		RET					;	THEN RETURN
 ;
 ;	PUT A BLOCK OF DATA INTO M-DRIVE/H BOARD
 ;	ADDRESS IS ALREADY SELECTED.
@@ -265,25 +243,22 @@ M$READ:	IN		HDATA		;GET DATA BYTE
 ;
 ;	EXIT -- <A> = 0 No errors.
 M$WRITE:MOV		A,M			;GET BYTE FROH BUFFER
+		INX		H			;UP POINTER
 		OUT		HDATA		;TO MDRIVE BOARD
 		ADD		B			;ADD UP PARITY BYTE
 		MOV		B,A			; AND SAVE
-		INX		H
 		DCR		C			;COUNT THIS MOVE
-		JNZ		M$WRITE		;IF DONE WITH 128 OR <C> COUNT
-		CALL	PARITY		;SELECT PARITY BYTE LOCATION
+		JNZ		M$WRITE		;AND DO AGAIN
+		XCHG				;<HL> = untranslated TRACK
+		CALL	SETMDRV		;SELECT PARITY BYTE LOCATION
 		MOV		A,B
 		OUT		HDATA		;WRITE PARITY BYTE TO HEMORY DISK
 		XRA		A			;AND SHOW NO ERROR
 		RET					;RETURN
 ;
-;	FIND LOCATION IF PARITY BYTE FOR TRACK IN CIOPB+2
-;	AND THE SECTOR IN CIOPB+4
-PARITY:	LHLD	CIOPB+2		;Get track
-
 ;	Set	M-DRIVE/H board to address In <HL>
 SETMDRV:
-		LDA		CIOPB+4		;Get sector, Starts at 0
+		LDA		SECTOR		;Get sector, Starts at 0
 		OUT		HADDR		;<A>: to M-DRIVE/H board
 		MOV		A,H			;<H>: is always 0 or 1
 		OUT		HADDR
@@ -291,18 +266,25 @@ SETMDRV:
 		OUT		HADDR		; remainder picks sector and byte
 		RET
 ;
-MDISKL:	EQU		$-MDRIVE	;LENGTH OF MDRIVE BIOS
-;
 ;	Flags and Buffers
 ;
-;	CIOPB+0 = SELFLG
-;	CIOPB+1 = COMMAND
-;	CIOPB+2 = TRACK
-;	CIOPB+4 = SECTOR
-;	CIOPB+5 = MRETRY
-
-CIOPB:	DS		8			;COMMAND BUFFER,TRACK,SECTOR
-DMAADR:	DS		2			;ADDRESS OF DHA BUFFER
+SELFLG:	DB		0			;0 = Not selected, -1 Selected
+;
+;	Disk Parameter Header
+;
+MD$DPH:	DW	0				;SECT0R TRANSLATE TABLE
+		DW	0,0,0			;SCRATCH
+		DW	BUFDIR			;DIRECT0RY BUFFER
+		DW	MD$DPB			;DPB BLOCK
+		DW	0				;CHECKSUM VECTOR
+		DW	ALV				;ALL0CATI0N VECTOR
+;
+SECTOR:	DB		0			;SECTOR: 0-255
+TRACK:	DW		0			;TRACK:  0-65535
+DMAADR:	DW		0			;ADDRESS OF DMA BUFFER
+;	End of initialized code
+MDISKL:	EQU		$-MDRIVE	;LENGTH OF MDRIVE BIOS
+BUFDIR:	DS		80H			;DIRECTORY BUFFER
 ALV:	DS		(((DSM*spt)+7)/spt)+1
 
 	END

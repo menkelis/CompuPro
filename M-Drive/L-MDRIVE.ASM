@@ -6,6 +6,19 @@
 ;
 ; Drive: A - P
 ; Address: >CP/M
+; Memory	Size 	Hex address
+; ------	----	-----------
+; 64K	63K		FC00
+; 60K	59K		EC00
+; 56K	55K		DCOO
+; 52K	51K		CCOO
+; 48K	47K		BC00
+; 44K	43K		AC00
+; 40K	39K		9C00
+; 36K	35K		8C00
+; 32K	31K		7C00
+; 28K	27K		6CO0
+; 24K	23K		3COO
 
 ;-----------------------------------------------------------------------------
 ; Start of program
@@ -16,6 +29,10 @@ warm$boot	equ		0000h
 bdos		equ		0005h
 DMABUF		equ		0080h
 STACK		equ		800H
+HM$DATA		EQU		0C6H
+HM$CNTL		EQU		0C7H
+FD$RDAT		EQU		0FFH
+
 
 		ORG		0100H
 main:	equ		$
@@ -23,21 +40,20 @@ main:	equ		$
 ; VALUES FILLED IN BY G-MDRIVE.
 RELBAS:		DS		2		;RELOCATION BASE
 MDSIZE:		DS		2		;SIZE OF MDISK DRIVER
-BOARDS:		DB		1		;NUMBER OF M-DRIVE/H BOARDS
 past:	lxi		sp,stack
 		call	findBIOS	;Get address of BIOS vectors
-		call	findBOARDS	;Get number of M-DRIVE boards
 		call	getargs		;Process command line
 		call	validate	;Validate parameters
 		call	loaded		;Check for existing driver
+		call	findBOARDS	;Get number of M-DRIVE boards
 		call	relocate	;Relocate driver code
 		call	getvec		;Set BIOS vectors
 		call	setdrv		;Set drive
-		call	setdph		;Set DPH
 		call	setdpb		;Set DPB
 		call	movmem		;Copy driver to run location
 		call	setvec		;Set BIOS to use driver
-		jmp		warm$boot	;Warm-Boot
+		lxi		d,HM$MSG
+		jmp		BAIL		;Print number of boards found
 ;
 findBIOS:
 		lhld	warm$boot+1
@@ -49,9 +65,123 @@ findBIOS:
 		shld	BIOS		;Address of BIOS function HOME
 		ret
 ;
-; Number of M-DRIVE/H boards (1 - 8)
+; "Size" the M-Drive/H by counting active boards in use.
 findBOARDS:
-		ret
+		LXI		H,-((512-4)/2)	;Init the disk size (blocks 2K)
+		LXI		B,30F8h		;"B" = "0", "C" = board count-1
+HMDTEST:
+		MOV		A,B			;ASCII "0"
+		STA		HM$MSG		;Put ASCII board count in Sign-on
+		INR		B			;Bump count for next loop
+		LXI		D,(512-4)/2	;Size of each board in 2K blocks
+		DAD		D			;Add in more blocks for new board
+		MOV		A,C			;<C> = board count
+		ADI		8			;Bump sector count by 8 (1 board)
+		STA		SPT			;Save sector count in Disk Parameter Block
+		MOV		C,A			;Update <C>
+		CPI		64			;See if maximum count reached
+		RZ					;Done if so
+		PUSH	H			;Save the current disk size in blocks
+		CALL	HMDTRD		;Read a sector into the directory buffer
+		XRA		A			;Clear command (for write)
+		CALL	HMDTWR		;Write it back out again
+		CALL	HMDTRD		;Read back, should now report no errors
+		POP		H			;Recover current disk size
+		JZ		HMDTEST		;Test for next board if no errors
+		MOV		A,C			;Board not found
+		CPI		0			;See if no boards present
+		JZ		NOT$FND		;If no boards found
+		CPI		31			;See if 2 megabytes or more
+		JNC		HMD4K		;Set DSM only if so, rest of DPB is set
+		CPI		8			;See if only 512K
+		JNZ		HMD1 		;If not 512k, don't change EXM
+		XRA		A
+		STA		EXM			;Set EXM to 0 if only one board
+; Set DIRS = 128, Reserving two blocks
+HMD1:	XCHG				;Save DSM in "D,E"
+		LXI		H,128-1 	;
+		SHLD	DIRS		;Set directory count to 128
+		MVI 	A,0C0H		;
+		STA		AL0			;Set number of reserved blocks to match
+		XCHG				;Put DSM back in "H,L"
+HMD4K:	DCX		H
+		SHLD	DSM			;Save corrected disk size allocation
+HMDEND:	RET
+;
+; Routine to size the number of boards belonging to an M-Drive/H.
+
+HMDTRD:	MVI		A,FD$RDAT	;Floppy "read data" command works for M-Drive
+HMDTWR:	STA		CIOPB		;Store command for Read/Write process
+		LXI		H,DMABUF	;Use the directory buffer area for storage
+		PUSH	B			;Save sector, message value
+		MOV		A,C			;Sector to test
+		LXI		B,4			;Actual track number for parity
+		LXI		D,4*128		;"Translated" track number 4 (directory)
+		CALL	HMD$FNL		;Perform Read/Write operation
+		POP		B			;Recover sector and the ASCII board number
+		RET					;Return with parity error status
+
+; ----- For M-DRIVE/H -----
+;Entry:	D,E = Translated "Track" in range of (4-511)*128,
+;	A = "Sector" in range of 0-"8n-1", where "n" is # of M-DRIVE/H boards.
+;	B,C = Actual track
+;
+;  Rearranged so that "sector" info is actually the high order address byte -
+; "D" becomes the low order track address byte, and since "D" may hold
+; only a "1" or "0" in it's MSB, use it to identify the "high or low"
+; sector being addressed by rotating that bit to the high order position.
+;
+HMD$FNL:
+		PUSH	B			;Save "track" for parity
+		PUSH	PSW
+		OUT		HM$CNTL		;Set "sector" for parity¬ high "track" byte
+		MOV		A,D
+		OUT		HM$CNTL		;Low order byte of "track"
+		MOV		A,E
+		OUT		HM$CNTL		;Set "record" 1 or 0 ID in final byte setup
+		LXI		B,8080H
+		LDA		CIOPB		;See if read operation requested
+		CPI		FD$RDAT
+		JNZ		HMD$WRT		;Do write if not
+HMD$RD:
+		IN		HM$DATA		;Get data byte from "drive"
+		MOV		M,A
+		INX		H			;In memory, point to next location
+		ADD		B
+		MOV		B,A			;Accumulate parity byte
+		DCR		C			;Until all 128 bytes done
+		JNZ		HMD$RD		;If done, point to stored disk parity byte
+		POP		PSW
+		OUT		HM$CNTL		;Set High order byte of track
+		POP		D
+		MOV		A,D
+		OUT		HM$CNTL		;Set Low order byte of track (single bit)
+		MOV		A,E
+		OUT		HM$CNTL		;Use old byte of "track" to find single byte
+		IN		HM$DATA
+		SUB		B			;Get it and see if parity matches
+		RET					;Return with error status
+;
+; Write operation to MDRIVE/H.
+HMD$WRT:
+		MOV		A,M
+		INX		H			;Get byte from memory, point to next
+		OUT		HM$DATA		;Xmit to "drive"
+		ADD		B
+		MOV		B,A			;Accumulate parity byte
+		DCR		C			;Until 128 bytes done
+		JNZ		HMD$WRT		;If done, point to storage for parity byte
+		POP		PSW
+		OUT		HM$CNTL		;Set High order byte of track
+		POP		D			;Recover selected track
+		MOV		A,D
+		OUT		HM$CNTL		;Set Low order byte of track (single bit)
+		MOV		A,E
+		OUT		HM$CNTL
+		MOV		A,B
+		OUT		HM$DATA		;Save it to memory "drive" reserved area
+		XRA		A
+		RET					;Show valid write operation
 ;
 getargs:
 		lxi		h,DMABUF
@@ -97,15 +227,14 @@ validate:
 		ret
 ;
 ; Check for existing driver
-loaded:
+loaded:	lxi		h,return
+		push	h			;Stack return address
 		lda		UNIT		;Recover UNIT
 		sui		'A'			;Convert to binary DRIVE
 		mov		c,a			;Into reg C
 		lhld	BIOS		;Point to base of BIOS
 		lxi		d,003h		;Offset to SELDSK
 		dad		d
-		lxi		d,return
-		push	d			;Stack return address
 		pchl				;Call BIOS
 							;Return HL=0 if invalid drive else HL=DPH
 return:	mov		a,h			;Test if HL = 0
@@ -183,116 +312,15 @@ setdrv:	lhld	DRIVE
 		ret
 ;
 ; Set DPB in driver
-setdpb:	lda		BOARDS		;Number of M-DRIVE/H boards
-		dcr		a			;Range: 0 - 7
-		mov		l,a
-		mvi		h,0			;HL=Offset
-		dad		h			;*2
-		dad		h			;*4
-		dad		h			;*8
-		dad		h			;*16
-		lxi		d,DPBTBL	;HL=Base of DPB table
-		dad		d			;HL=DPBTBL pointer
+setdpb:	lxi		h,SPT		;HL=DPB in loader
 		lxi		d,DPB		;DE=DPB in module
-		mvi		c,15		;C=Length of DPB
+		mvi		c,LEN$DPB	;C=Length of DPB
 setnxt:	mov		a,m			;Get byte from table
 		stax	d			;Put into module
 		inx		h
 		inx		d
 		dcr		c
 		jnz		setnxt
-		ret
-SIB		equ		2048/128	;Sectors in Memory Drive Data Block
-DPBTBL:
-;	1 board
-		dw		8			;SPT
-		db		4,15,1		;BSH, BLH, EXM
-		dw	(((512-4)*8)/SIB)-1	;DSM
-		dw		128-1		;DRM
-		db		0C0h,00h	;AL0, AL1
-		dw		0			;CKS
-		dw		4			;OFF
-		db		0			;End of table
-;	2 boards
-		dw		16			;SPT
-		db		4,15,0		;BSH, BLH, EXM
-		dw	(((1024-4)*8)/SIB)-1	;DSM
-		dw		128-1		;DRM
-		db		0C0h,00h	;AL0, AL1
-		dw		0			;CKS
-		dw		4			;OFF
-		db		0			;End of table
-;	3 boards
-		dw		24			;SPT
-		db		4,15,0		;BSH, BLH, EXM
-		dw	(((1536-4)*8)/SIB)-1	;DSM
-		dw		128-1		;DRM
-		db		0C0h,00h	;AL0, AL1
-		dw		0			;CKS
-		dw		4			;OFF
-		db		0			;End of table
-;	4 boards
-		dw		32			;SPT
-		db		4,15,0		;BSH, BLH, EXM
-		dw	(((2048-4)*8)/SIB)-1	;DSM
-		dw		128-1		;DRM
-		db		0C0h,00h	;AL0, AL1
-		dw		0			;CKS
-		dw		4			;OFF
-		db		0			;End of table
-;	5 boards
-		dw		40			;SPT
-		db		4,15,0		;BSH, BLH, EXM
-		dw	(((2560-4)*8)/SIB)-1	;DSM
-		dw		128-1		;DRM
-		db		0C0h,00h	;AL0, AL1
-		dw		0			;CKS
-		dw		4			;OFF
-		db		0			;End of table
-;	6 boards
-		dw		48			;SPT
-		db		4,15,0		;BSH, BLH, EXM
-		dw	(((3072-4)*8)/SIB)-1	;DSM
-		dw		128-1		;DRM
-		db		0C0h,00h	;AL0, AL1
-		dw		0			;CKS
-		dw		4			;OFF
-		db		0			;End of table
-;	7 boards
-		dw		56			;SPT
-		db		4,15,0		;BSH, BLH, EXM
-		dw	(((3584-4)*8)/SIB)-1	;DSM
-		dw		128-1		;DRM
-		db		0C0h,00h	;AL0, AL1
-		dw		0			;CKS
-		dw		4			;OFF
-		db		0			;End of table
-;	8 boards
-		dw		64			;SPT
-		db		4,15,0		;BSH, BLH, EXM
-		dw	(((4096-4)*8)/SIB)-1	;DSM
-		dw		128-1		;DRM
-		db		0C0h,00h	;AL0, AL1
-		dw		0			;CKS
-		dw		4			;OFF
-		db		0			;End of table
-;
-; Set DPH in driver
-setdph:	lda		0004h		;Current drive
-		mov		c,a
-		lhld	BIOS
-		lxi		d,0003h		;DE=Offset from WBOOT to SELDSK
-		dad		d			;HL=address of BIOS function SELDSK
-		lxi		d,retdph
-		push	d			;Return address
-		pchl				;Call BIOS function
-retdph:	lxi		d,0008h
-		dad		d			;Point to address of DIRBUF
-		mov		e,m
-		inx		h
-		mov		d,m
-		xchg				;HL=DIRBUF
-		shld	dph+0008h	;Set driver DPH entry for DIRBUF
 		ret
 ;
 ; Copy FROM BIOS to mdisk, 8 jump vectors
@@ -512,6 +540,12 @@ BIG$CPM:
 ;
 DUP$DRV:
 		lxi		d,err5		;DE=Message
+		jmp		BAIL
+;
+; Report No Boards Found
+;
+NOT$FND:
+		lxi		d,err6		;DE=Message
 ;
 ;
 ; Print Message (DE), Fall into EXIT
@@ -539,7 +573,6 @@ conout:	push	psw
 		pop		b
 		pop		psw
 		ret
-;
 ;
 ; Print termenited message pointed by DE
 ;
@@ -573,13 +606,30 @@ err4:	db	'NO ROOM ABOVE CP/M FOR DRIVER'
 
 err5:	db	'DRIVER ALREADY LOADED'
 		db	0Dh,0Ah,'$'
+
+err6:	db	'NO M-DRIVE/H BOARDS FOUND'
+		db	0Dh,0Ah,'$'
+
+HM$MSG:	DB		'0'
+		DB		' M-Drive/H$' ;Show active M-DRIVE/H boards
+;
+; DPB
+SPT:	DW		0040H		;SPT
+		DB		004H,00FH	;BSH, BLH
+EXM:	DB		001H		;EXM
+DSM:	DW		03EFH		;DSM-1
+DIRS:	DW		01FFH		;DIRS-1
+AL0:	DB		0FFH,000H	;AL0, AL1
+		DW		000H		;CKS
+		DW		004H		;OFF
+LEN$DPB	EQU		$-SPT
 ;
 ; DATA	AREA
 BIOS:	DW		0
 UNIT:	DB		0FFh
 HIMEM:	DW		000h
 SIZE:	DW		0
-
+CIOPB:	DS		1
 MDRIVEL:	equ		$-MAIN
 
 ;
@@ -590,5 +640,5 @@ MDRIVE	DS		8*3
 GO$BIOS:DS		8*3
 DRIVE:	DS		2		;Drive, M-DISK/H flag
 DPB:	DS		14
-DPH:	DS		16
+
 	end
