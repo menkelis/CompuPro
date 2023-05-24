@@ -250,7 +250,6 @@ Fill$Nxt:	call	break$chk	;Asking for exit?
 			jmp		0			;Warm boot
 Fill$Go:	mvi		c,80h
 Fill$Byte:	mov		a,e
-			cma
 			out		0ffh		;Out to IMSAI lights
 			call	rndm		;A=test byte
 			out		hdata
@@ -285,7 +284,6 @@ Read$Nxt:	call	break$chk	;Check for exit
 			jmp		0			;Warm boot
 Read$Go:	mvi		c,80h
 Read$Byte:	mov		a,e
-			cma
 			out		0ffh		;Out to IMSAI lights
 			in		hdata
 			mov		l,a			;L=data read
