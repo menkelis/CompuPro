@@ -185,7 +185,7 @@ RCAL4	EQU	$+HIRAM-ENTRY
 	JNZ		D3BOOT			;Loop to DISK3 boot if error
 ;
 ; Execute read operation sequence until loaded successfully.
-	MVI		B,LDMA			;Length of DMA data
+	MVI		B,LDATA			;Length of DMA data
 ;
 ; Output beginning DMA address.
 ADDR	EQU	$+HIRAM-ENTRY
@@ -352,7 +352,7 @@ DATA	EQU	$+HIRAM-ENTRY
 	DB	0					;Extended Address
 	DB	XBOOT/256			;Base address of BOOT loader
 	DB	XBOOT and 0FFh
-LDMA	EQU	HIRAM+$-ENTRY-DATA	;Length of DMA to load
+LDMA	EQU	HIRAM+$-ENTRY-DATA	;Length of DATA to load
 ;
 ; Try to read disk as single density 128 byte sectors.
 READ	EQU	$+HIRAM-ENTRY

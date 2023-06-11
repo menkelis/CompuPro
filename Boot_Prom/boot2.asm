@@ -119,8 +119,8 @@ START1	EQU	$+HIRAM-ENTRY
 	call	DELAY			;Switch settle time
 ;
 ; Load Specify Command.
-	inx	d					;Point to specify command sequence
-	mvi	b,LSPEC				;Length in "B"
+	inx		d				;Point to specify command sequence
+	mvi		b,LSPEC			;Length in "B"
 SPEC1	EQU	$+HIRAM-ENTRY
 	IN		FDPORT+FDCS		;See if ready to accept next byte
 	ORA		A
@@ -130,7 +130,6 @@ SPEC1	EQU	$+HIRAM-ENTRY
 	INX		D				;Point to next byte
 	DCR		B				;Bump count until all loaded
 	JNZ		SPEC1			;Loop if more to do
-	call	DELAY
 ;
 ; Recalibrate drive.
 	MVI		B,LRECAL		;Length of command in "B"
@@ -170,7 +169,7 @@ RCAL4	EQU	$+HIRAM-ENTRY
 	JNZ		D5BOOT			;Loop to 5.25 drive 2 boot if error
 ;
 ; Execute read operation sequence until loaded successfully.
-	MVI		B,LDMA			;Length of DMA data
+	MVI		B,LDATA			;Length of data
 ;
 ; Output beginning DMA address.
 ADDR	EQU	$+HIRAM-ENTRY
@@ -277,7 +276,7 @@ DATA	EQU	$+HIRAM-ENTRY
 	DB	0					;Extended Address
 	DB	XBOOT/256			;Base address of BOOT loader
 	DB	XBOOT and 0FFh
-LDMA	EQU	HIRAM+$-ENTRY-DATA	;Length of DMA to load
+LDATA	EQU	HIRAM+$-ENTRY-DATA	;Length of DATA to load
 ;
 ; Try to read disk as single density 128 byte sectors.
 READ8	EQU	$+HIRAM-ENTRY

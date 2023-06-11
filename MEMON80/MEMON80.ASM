@@ -3,8 +3,8 @@
 ; an 8080- or Z80-based system, supporting a variety of serial
 ; ports and floppy disk controllers.
 ;==============================================================
-VERSION	equ	0306h	;high byte = major revision number
-			;low byte=2-digit minor version
+VERSION	equ	0307h	;high byte = major revision number
+					;low byte=2-digit minor version
 ;==============================================================
 ;
 ; See comments further down for a list and description of
@@ -56,6 +56,9 @@ VERSION	equ	0306h	;high byte = major revision number
 ;    Altair 88-DCDD 8"
 ;    Altair 88-MDS Minidisk
 ;    California Computer Systems 2422
+;    Compupro DISK1A 8"
+;    Compupro DISK1A 5.25"
+;    Compupro DISK3
 ;    Cromemco 4FDC/16FDC/64FDC
 ;    Fulcrum Ohmnidisk
 ;    Heathkit H17 Minifloppy
@@ -117,8 +120,10 @@ ROM2K	equ	TRUE
 ;its buffers, stack, and variables are. Additionally, you
 ;can disable some Memon/80 features to reduce the code size. 
 ;-----------------------------------------------------------
+;MEBASE	equ	08000h
 MEBASE	equ	0F800h	;Base address of Memon/80 code
 
+;RAMCOD	equ	TRUE
 RAMCOD	equ	FALSE	;Set to true if executing from RAM in
 			;low memory (e.g. at 0100h for CP/M).
 
@@ -445,10 +450,13 @@ TBAUD	equ	7	;Initial Transfer Port baud rate
 A88DCD	equ	FALSE	;MITS Altair 88-DCDD
 A88MCD	equ	FALSE	;MITS Altair 88-MDS
 CC2422	equ	FALSE	;CCS 2422 Disk controller
+DISK1A8	equ	FALSE	;CompuPro DISK1A with 8" disk
+DISK1A5	equ	FALSE	;CompuPro DISK1A with 5.25" disk
+DISK3	equ	FALSE	;CompuPro DISK3
 C4FDC	equ	FALSE	;Cromemco 4FDC
 C16FDC	equ	FALSE	;Cromemco 16FDC
 C64FDC	equ	FALSE	;Cromemco 64FDC
-FULCRUM	equ	TRUE	;Fulcrum Omnidisk
+FULCRUM	equ	FALSE	;Fulcrum Omnidisk
 H17R	equ	FALSE	;Heathkit H17 (onboard boot ROM),
 IFIF	equ	FALSE	;IMSAI FIF
 IMD8R	equ	FALSE	;IMSAI MDC-DIO with 8" disk (onboard
@@ -636,6 +644,8 @@ ENINTS equ	FALSE
 ;    Verify <BCNT> bytes of memory, starting at <SRC> and <DST>
 ;==============================================================
 ;REVISION HISTORY
+;VERS. 3.07 by M Enkelis 26 Sept 2023
+;  Add CompuPro DISK1A and DISK3 controller boot code.
 ;VERS. 3.06 by M Enkelis 26 Sept 2022
 ;  Add Fulcrum Omnidisk controller boot code.
 ;  Add Compupro System Support-1 card.
@@ -2563,6 +2573,52 @@ BDDEN	equ	00100000b	;DDEN signal in ctrl register 1
 BSIDED	equ	01000000b	;0=selected disk is 2-sided
 
  endif ;CC2422
+
+;-----------------------------
+;CompuPro DISK1A/DISK3 Equates
+;-----------------------------
+ if DISK1A8 or DISK1A5 or DISK3
+
+BOOTER	set	TRUE		;Boot command exists
+MAXTRYS	equ	10		;max retries
+
+XBOOT	EQU	100h			;Base Location of second phase loader in RAM
+MAP		EQU	XBOOT+400h		;allocation map address for bad DISK3 sectors
+;
+; Drive specific constants. (Set to handle nearly any drive)
+SRT		EQU	16 - 10			;10 millisecond step rate for controller value
+HUT		EQU	240 / 16		;Head unload delay time in milliseconds (240)
+HDLT	EQU	(35 + 1) / 2	;Head load time in milliseconds (35)
+;
+; controller port for Disk 1A at 0C0h
+FDPORT	EQU	0C0h
+NS$128	EQU	26	; 128 byte sectors / track	-- 3.25K
+NS$256	EQU	26	; 256 byte sectors / track	-- 6.5K
+NS$512	EQU	15	; 512 byte sectors / track	-- 7.5K
+NS1024	EQU	 8	;1024 byte sectors / track	-- 8K bytes total
+;
+FDCS	equ	00h
+FDCD	equ	01h
+FDMA	equ	02h
+INTS	equ	02h
+FDON	equ	03h
+FD$SPEC	equ	03h
+FD$RDAT	equ	06h
+FD$RECA	equ	07h
+FD$EOC	equ	80h
+FD$RSTS	equ	08h
+;
+;	DISK3 equates follow:
+D3PORT	EQU 90h	; DISK3 IO port
+D3NOP	EQU	0	; DISK3 no-op command
+D3RDFL	EQU 1	; DISK3 read flag
+D3GLBAL	EQU	2	; DISK3 global command
+D3SPEC	EQU	3	; DISK3 specify command
+D3MAP	EQU	4	; DISK3 bad map command
+D3HOME	EQU	5	; DISK3 home command
+D3RWCMD	EQU	8	; DISK3 read/write command
+
+ endif ;DISK1A8 or DISK1A5 or DISK3
 
 ;---------------------------------
 ;Cromemco 4FDC/16FDC/64FDC Equates
@@ -6055,6 +6111,410 @@ TIMOUT:	call	CILPRT
 
  endif ;CC2422
 
+;***Command Routine Continuation*****************
+;BO (Boot from CompuPro DISK1A Floppy Controller)
+;************************************************
+
+ if (DISK1A8 or DISK1A5) AND DISK3
+ERROR: DISK1A and DISK3 defined.
+ endif
+
+ if DISK1A8 or DISK1A5 or DISK3
+GBOCMD:
+	mvi		c,MAXTRYS+1	;sector retry counter
+ endif ;DISK1A8 or DISK1A5 or DISK3
+ if DISK1A8 or DISK1A5
+RBRTRY:
+	lxi		d,DRV$SEL		;Point to data block
+	MVI		A,0FEh			;Turn on the disk motors
+	OUT		FDPORT+FDON
+	ldax	d				;Fetch drive select byte
+	OUT		FDPORT+FDCS		;Send to controller
+	call	DELAY			;Switch settle time
+;
+; Load Specify Command.
+	inx		d				;Point to specify command sequence
+	mvi		b,LSPEC			;Length in "B"
+SPEC1:
+	IN		FDPORT+FDCS		;See if ready to accept next byte
+	ORA		A
+	JP		SPEC1			;Wait if not ready
+	LDAX	D				;Load command byte
+	OUT 	FDPORT+FDCD		;to controller command port
+	INX		D				;Point to next byte
+	DCR		B				;Bump count until all loaded
+	JNZ		SPEC1			;Loop if more to do
+;
+; Recalibrate drive.
+	MVI		B,LRECAL		;Length of command in "B"
+RCAL1:
+	IN		FDPORT+FDCS		;See if ready to accept next byte
+	ORA		A
+	JP		RCAL1			;Wait if not ready
+	LDAX	D				;Load command byte
+	OUT 	FDPORT+FDCD		;to controller command port
+	INX		D				;Point to next byte
+	DCR		B				;Bump count until all loaded
+	JNZ		RCAL1			;Loop if more to command load
+;
+RCAL2:
+	IN		FDPORT+INTS		;See if command execution completed
+	ORA		A
+	JP		RCAL2			;Wait if not
+;
+; Verify successful completion of recalibrate command.
+	MVI		A,FD$RSTS		;"Read Status" command
+	OUT		FDPORT+FDCD		; to controller
+	CALL	DELAY			; blink drive light
+RCAL3:
+	IN		FDPORT+FDCS		;See if command accepted
+	ORA		A
+	JP		RCAL3			;Loop until ready
+	IN		FDPORT+FDCD		;Get first resulting "Status Byte"
+	XRI		20h				;Flip "drive ready" status bit
+	MOV		C,A				;Put result in "C"
+;
+RCAL4:
+	IN		FDPORT+FDCS		;Get command execution status again
+	ORA		A
+	JP		RCAL4			;See if seek complete
+	IN		FDPORT+FDCD		;Get second "execution" result byte
+	ORA		C				;Combine the two result status bytes
+	JNZ		BAD$BOOT		;Test boot if error
+;
+; Execute read operation sequence until loaded successfully.
+	MVI		B,LDATA			;Length of DATA data
+;
+; Output beginning DMA address.
+ADDR:
+	LDAX	D				;Get byte of extended address
+	OUT		FDPORT+FDMA		;Send to DMA port of DISK 1
+	INX		D				;Next byte to xfer
+	DCR		B				;Bump count
+	JNZ		ADDR			;Loop until all 3 bytes loaded
+;
+; Read all the data on track 0 in to get the cold boot loader.
+	MVI		B,LREAD			;Load "B" with command lenght
+READ1:
+	IN		FDPORT+FDCS		;Get controller status
+	ORA		A
+	JP		READ1			;Wait until controller ready for another byte
+	LDAX	D				;load command byte
+	OUT 	FDPORT+FDCD		; to controller
+	INX		D				;Point to next byte to load
+	DCR		B				;Bump command load count
+	JNZ		READ1			;Loop if more bytes to load
+;
+READ2:
+	IN		FDPORT+INTS		;See if interrupt active (command complete)
+	ORA		A
+	JP		READ2			;Loop until so
+;
+READ3:
+	IN		FDPORT+FDCS		;See if ready to read status
+	ORA		A
+	JP		READ3			;Wait if not
+	IN		FDPORT+FDCD		;Get resulting status of read operation
+	SUI		40h				;Remove "abnormal ending" status bit
+	ani		0FCH			;Mask bits
+	MOV		H,A				;Put result in "H"
+READ4:
+	IN		FDPORT+FDCS		;Get second status byte
+	ORA		A
+	JP		READ4			;Loop until ready
+	IN		FDPORT+FDCD		;Second status byte in "A"
+	XRI		FD$EOC			;Remove "End of Cylinder" bit
+	MOV		L,A				;Put result in "L"
+;
+	MVI		B,7-2			;Count of remaining status bytes (ignored)
+READ5:
+	IN		FDPORT+FDCS		;See if controller ready
+	ORA		A
+	JP		READ5			;Loop if not
+	IN		FDPORT+FDCD		;Read status byte, ignore it
+	DCR		B				;Bump remaining count
+	JNZ		READ5			;Wait until all done
+; If "Abnormal Ending" caused by "End of Cylinder" error, then read is valid.
+	MOV		A,L
+	ORA		H				;Combine the two significant status bytes
+	JZ		BOOTVEC			;Exit from boot PROM if successful
+							;otherwise, fall through to bad boot retry check
+ endif ;DISK1A8 or DISK1A5
+ if DISK3
+	LXI		H,IOPB			;point to IOPB in ROM
+	LXI		D,RAMBUF		;point to IOPB in RAM
+	MVI		B,LIOPB			;Block length
+ROMOVE:
+	MOV		A,M				;read ROM byte
+	STAX	D				;write to RAM
+	INX		D				;point to next byte
+	INX 	H
+	DCR		B				;Count byte
+	JNZ 	ROMOVE			;loop if more bytes left to move
+;
+; load DISK3 IOPB address vector with first IOPB address
+RBRTRY:
+	LXI		D,5Dh			;DISK3 IOPB address vector
+	MVI		A,IOPB1 and 0FFh;LOB of first IOPB
+	STAX	D				;write to vector
+	INX		D				;point to next byte
+	MVI		A,IOPB1/256		;HOB of first IOPB
+	STAX	D				;write to vector
+	INX		D				;point to next byte
+	MVI		A,0				;extended address offset
+	STAX	D				;write to vector
+	lxi		d,50H			;DISK3 Command byte
+	stax	d				;Write D3NOP
+	inx		d				;Point to Status
+	inx		d				;Point to Drive
+	stax	d				;Write 0
+; End of IOPB init
+;
+; Boot from hard disk
+	MVI		A,1				;DISK3 board reset byte
+	OUT		D3PORT			;send it
+	XRA		A				;ATTENTION byte
+	STA		IOPB1S			;Clear STATUS
+	OUT		D3PORT			;send it
+	CALL	DELAY			;Give time to process
+;
+	LDA 	IOPB1S			;get STATUS
+	ORA		A				;check if DISK3 present
+	JM		DOHBT			;successful no-op, continue with hard boot
+;
+	XRA		A				;Null byte
+	STA		IOPB1S			;Clear STATUS
+	OUT		D3PORT			;send it
+	CALL	DELAY			;Give time to process
+	LDA 	IOPB1S			;get STATUS
+	ORA		A				;check if DISK3 present
+	JM		DOHBT			;successful no-op, continue with hard boot
+	JMP		BAD$BOOT		;otherwise error
+;
+; Continue hard boot
+DOHBT:
+	LXI 	D,IOPB2S		;point to global status byte
+	CALL 	EXECUT			;do global command
+;
+	LXI		D,IOPB3S		;point to home status byte
+	CALL	EXECUT			;do home head command
+;
+	LXI		D,IOPB4S		;point to read marker status byte
+	LHLD	IOPB4+10		;point to data address for format check
+	CALL	EXECUT			;do read command
+;
+	LXI		D,COMP			;point to 'COMPUPRO'
+	MVI		B,4				;compare 4 characters
+TEST:
+	LDAX	D				;'COMP' character in A
+	CMP		M				;compare header character
+	JNZ		BAD$BOOT		;if not equal, then DISK3 not formatted
+	INX		H				;point to next header byte
+	INX		D				;point to next 'COMPUPRO' byte
+	DCR 	B				;bump count
+	JNZ		TEST			;more characters?
+;
+	LXI		D,IOPB5S		;point to specify status byte
+	CALL	EXECUT			;do specify parameter command
+;
+	LXI		D,IOPB6S		;point to bad map status byte
+	CALL	EXECUT			;do bad map command
+;
+	LXI		D,IOPB7S		;point to read sectors status byte
+	LHLD	IOPB7+10		;point to data address for loader check
+	CALL	EXECUT			;do read command
+;
+	JMP		BOOTVEC			;is loader there, or merely formatted?
+;
+; CompuPro DISK3 specific subroutines
+;
+
+;
+; Execute DISK3 command subroutine
+EXECUT:
+	xra		a				;Null byte
+	stax	d				;Clear STATUS
+	out		D3PORT			;Nudge DISK3
+XX1:
+	ldax	d				;Get STATUS
+	ora		a				;Check if BUSY
+	jz		XX1				;If so, try again
+	rlc						;Test ERROR bit
+	rm						;No error
+	pop		h				;Otherwise, fix stack
+;Fall into BAD$BOOT
+ endif ;DISK3
+
+ if DISK1A8 or DISK1A5 or DISK3
+;----------------------------------
+;Read fail. Try again if possible.
+;Give user feedback about retries.
+;  c=retry count-down
+;----------------------------------
+BAD$BOOT:
+	mvi	a,MAXTRYS+1
+	cmp	c		;first retry?
+	jnz	RBR1		;n: just print dot
+
+	call	CILPRT		;Enables ints too, if ENINTS
+	db	'Retryin','g'+80h
+
+RBR1:	call	ILPRNT
+	db	'.'+80h
+
+	dcr	c		;too many retries?
+	jnz	RBRTRY
+;
+;Fall into BOTERR
+
+;---Fail-------------------------
+;Fatal error when trying to boot.
+;Report, and return to prompt
+;--------------------------------
+BOTERR:	call	CILPRT
+	db	'Boot failed:',' '+80h
+	jmp	CABORT
+;
+;************************************************
+;*	EXIT ON SUCCESSFUL READ OPERATION	*
+;************************************************
+;
+BOOTVEC:
+	LXI		H,XBOOT			;HL=Base of second phase loader in RAM
+	MOV		A,M				;possible loader byte
+	CPI		0E5h			;is loader there, or merely formatted?
+	JZ		CABORT			;Loader was NOT found
+	IN		FDPORT+INTS		;sense switch value
+							;if bit 4 on then Interfacer 3/4
+							;if bit 4 off then SS
+	RRC
+	RRC						;divide by 4
+	ANI		1				;mask 4
+	ORI		2				;add 2 for boot switch value
+	MOV		C,A				;Boot switch value passed to loader
+	JMP		XBOOT			;second phase loader
+;
+; Delay subroutine
+DELAY:
+	LXI		H,0C000h		;Init delay count
+DELAY0:
+	XTHL
+	XTHL					;Let command settle
+	DCX 	H
+	MOV 	A,H
+	ORA 	L				;Bump count, test if done
+	JNZ		DELAY0			;Loop until the time passes
+	RET
+ endif ;DISK1A8 or DISK1A5 or DISK3
+;
+; Data blocks for controllers
+;
+ if DISK1A8
+DRV$SEL:
+	db	000H				;Select 8" drive
+SPEC	EQU	$
+	DB	FD$SPEC				;Floppy disk specification command
+	DB	08Fh
+	DB	HDLT SHL 1
+LSPEC	EQU	$-SPEC			;Length of specification sequence
+RECAL	EQU	$
+	DB	FD$RECA				;Recalibrate command (home to track 0)
+	DB	0					;Drive 0
+LRECAL	EQU	$-RECAL			;Command length
+DATA	EQU	$
+	DB	0					;Extended Address
+	DB	XBOOT/256			;Base address of BOOT loader
+	DB	XBOOT and 0FFh
+LDATA	EQU	$-DATA			;Length of DATA to load
+READ	EQU	$
+	DB	FD$RDAT				;Read sector(s) command for 8272 controller
+	DB	0					;Head select, Drive select = 0
+	DB	0					;Cylinder #0
+	DB	0					;Head #0
+	DB	1					;Starting Record (sector)
+	DB	0					;"N" parameter (128 byte sectors)
+	DB	NS$128				;Read to end of track = 3.25K bytes
+	DB	07h					;GPL (Gap length)
+	DB	128					;DTL (Data length)
+LREAD	EQU	$-READ			;Length of parameter block to xmit
+ endif ;DISK1A8
+ if DISK1A5
+DRV$SEL:
+	DB	028H				;Select 5.25" drive
+SPEC	EQU	$
+	DB	FD$SPEC				;Floppy disk specification command
+	DB	0DFh
+	DB	01EH
+LSPEC	EQU	$-SPEC			;Length of specification sequence
+RECAL	EQU	$
+	DB	FD$RECA				;Recalibrate command (home to track 0)
+	DB	002H				;Drive 2
+LRECAL	EQU	$-RECAL			;Command length
+DATA	EQU	$
+	DB	0					;Extended Address
+	DB	XBOOT/256			;Base address of BOOT loader
+	DB	XBOOT and 0FFh
+LDATA	EQU	$-DATA			;Length of DATA to load
+READ	EQU	$
+	DB	FD$RDAT				;Read sector(s) command for 8272 controller
+	DB	0					;Head select, Drive select = 0
+	DB	0					;Cylinder #0
+	DB	0					;Head #0
+	DB	1					;Starting Record (sector)
+	DB	0					;"N" parameter (128 byte sectors)
+	DB	NS$128				;Read to end of track = 3.25K bytes
+	DB	07h					;GPL (Gap length)
+	DB	128					;DTL (Data length)
+LREAD	EQU	$-READ			;Length of parameter block to xmit
+ endif ;DISK1A5
+ if DISK3
+COMP:
+	db	'Comp'
+IOPB	equ	$
+IOPB1	equ	RAMBUF
+	db	D3NOP				;DISK3 present check
+IOPB1S	equ	IOPB1+1
+	db	0,0,0,0,0,0,0,0,0,0,0,0
+	db	IOPB2 and 0FFh,IOPB2/256,0
+IOPB2	equ	IOPB1+16
+	db	D3GLBAL				;Global information
+IOPB2S	equ	IOPB2+1
+	db	0,0,0,0,0,0,0,0,0,0,0,0
+	db	IOPB3 and 0FFh,IOPB3/256,0
+IOPB3	equ	IOPB2+16
+	db	D3HOME				;Home head
+IOPB3S	equ IOPB3+1
+	db	0,0,0,0,0,0,0,0,0,0,0,0
+	db	IOPB4 and 0FFh,IOPB4/256,0
+IOPB4	equ	IOPB3+16
+	DB	D3RWCMD				;read marker into XBOOT
+IOPB4S	equ	IOPB4+1
+	DB	0,0,D3RDFL,0,0,0,0,2,0
+	db	XBOOT and 0FFh,XBOOT/256,0
+	DB	IOPB5 and 0FFh,IOPB5/256,0
+IOPB5	equ	IOPB4+16
+	DB	D3SPEC				;specify parameters
+IOPB5S	equ	IOPB5+1
+ 	DB	0,0,0,0,0,0,0,0,0
+	db	XBOOT+10h and 0FFh,XBOOT/256,0
+	DB	IOPB6 and 0FFh,IOPB6/256,0
+IOPB6	equ	IOPB5+15
+	DB	D3MAP				;allocation map for bad sectors
+IOPB6S	equ	IOPB6+1
+	DB	0,0,0,0,0,0,0,0,0
+	db	MAP and 0FFh,MAP/256,0
+	DB	IOPB7 and 0FFh,IOPB7/256,0
+IOPB7	equ	IOPB6+16
+	DB	D3RWCMD				;read 9 1024-B sectors into XBOOT
+IOPB7S	equ	IOPB7+1
+	DB	0,0,D3RDFL,0,0,0,0,9,0
+	db	XBOOT and 0FFh,XBOOT/256,0
+	db	50h,0,0
+LIOPB	equ	$-IOPB	;7*16
+ endif ;DISK3
+
+;endif ;DISK1A8 or DISK1A5 or DISK3
+
 ;***Command Routine Continuation***************************
 ;BO (Boot from Cromemco 4FDC/16FDC/64FDC Floppy Controller)
 ;On Entry:
@@ -8940,7 +9400,7 @@ CODEND	equ	$
 ERROR: code is larger than available EPROM space
  endif ;(not RAMCOD) and ((CODEND-MEBASE-1)/ROMSIZ)
 
- if GO86
+ if (not ramcod) and GO86
  	org 0FFFF0H
 	db	0EAH				;8088 JMP FAR ...
 	dw	0400H,0000H			;8088 ... DEST & CS [0400H in PAGE 0]
