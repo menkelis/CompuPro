@@ -226,7 +226,7 @@ CWIOB1	equ	FALSE	;Wameco IOB-1's serial port
 ;-----------------------------------------------------------
 TALSIO	equ	FALSE	;Altair 88-SIO
 TA2SIO	equ	FALSE	;Altair 88-2SIO (Port A or B)
-			;or 8800b Turnkey Module or 88-UIO
+					;or 8800b Turnkey Module or 88-UIO
 TC2718A	equ	FALSE	;CCS 2718 Serial Port A
 TC2718B	equ	FALSE	;CCS 2718 Serial Port B
 TC2719A	equ	FALSE	;CCS 2719 Port A
@@ -460,22 +460,22 @@ FULCRUM	equ	FALSE	;Fulcrum Omnidisk
 H17R	equ	FALSE	;Heathkit H17 (onboard boot ROM),
 IFIF	equ	FALSE	;IMSAI FIF
 IMD8R	equ	FALSE	;IMSAI MDC-DIO with 8" disk (onboard
-			;..boot ROM
+					;..boot ROM
 IMDMR	equ	FALSE	;IMSAI MDC-DIO with minidisk (onboard
-			;..boot ROM
+					;..boot ROM
 MDUBLR	equ	FALSE	;Micromation Doubler (onboard boot
-			;..ROM
+					;..ROM
 MICROP	equ	FALSE	;Micropolis FD controller B
 MICROR	equ	FALSE	;Micropolis FD Controller B (onboard
-			;..boot ROM
+					;..boot ROM
 NSTARS	equ	FALSE	;Northstar MDC-A and MDS-A
 NSTRSR	equ	FALSE	;Northstar MDC-A and MDS-A (onboard
-			;..boot ROM
+					;..boot ROM
 NSTARD	equ	FALSE	;Northstar MDS-D
 NSTRDR	equ	FALSE	;Northstar MDS-D (onboard boot ROM)
 SALFDC	equ	FALSE	;Salota FDC (same as Versafloppy II)
-VERSA1  equ     FALSE	;SD Systems Versafloppy
-VERSA2  equ     FALSE	;SD Sales Versafloppy II
+VERSA1	equ	FALSE	;SD Systems Versafloppy
+VERSA2	equ	FALSE	;SD Sales Versafloppy II
 TARBL1	equ	FALSE	;Tarbell 1011
 TARBL2	equ	FALSE	;Tarbell 2022
 
@@ -526,7 +526,7 @@ DMBASE	equ	0000h	;Disk controller memory Base Address
 ;enabled anyway, (and the necessary interrupt code will be
 ;installed) regardless of what you enter here.
 ;--------------------------------------------------------------
-ENINTS equ	FALSE
+ENINTS	equ	FALSE
 
 ;===============================
 ;=   End of Assembly Options   =
@@ -749,11 +749,11 @@ ROMSIZ	equ	800h		;2K EPROM size (e.g. 2716)
 ;General program Equates
 ;***********************
 CTRLC	equ	03h		;ASCII control-C
-BS	equ	08h		;ASCII backspace
-LF	equ	0Ah		;ASCII linefeed
-CR	equ	0DH		;ASCII carriage return
+BS		equ	08h		;ASCII backspace
+LF		equ	0Ah		;ASCII linefeed
+CR		equ	0DH		;ASCII carriage return
 QUOTE	equ	27h		;ASCII single quote
-DEL	equ	7Fh		;ASCII delete
+DEL		equ	7Fh		;ASCII delete
 
 PROMPT	equ	'>'		;prompt character
 CABKEY	equ	CTRLC		;command abort character
@@ -881,7 +881,6 @@ TSCP400	set	FALSE	;  Transfer port uses a port on a SCP 400
 ;Note that the 88-SIO requires no initialization.
 ;-------------------------------------------------------
  if CALSIO
-
 CSTAT	equ	CBASE		;1st SIO status input port
 CDATA	equ	CBASE+1		;1st SIO Rx & Tx data regs
 
@@ -939,8 +938,8 @@ CSTAT	equ	CBASE	;serial port A status
 CCTRL	equ	CBASE	;channel a control
 CDATA	equ	CBASE+1	;serial port A data
 
-CTXRDY	  equ	  01h	;Console Tx ready bit
-CRXRDY	  equ	  02h	;Console Rx ready bit
+CTXRDY	equ	01h	;Console Tx ready bit
+CRXRDY	equ	02h	;Console Rx ready bit
 
 CBD110	equ	10Fh	;0= 110 baud
 CBD150	equ	10Eh	;1= 150 baud
@@ -985,8 +984,8 @@ TSTAT	equ	TBASE	;serial port A status
 TCTRL	equ	TBASE	;channel a control
 TDATA	equ	TBASE+1	;serial port A data
 
-TTXRDY	  equ	  01h	;Transfer Port Tx ready bit
-TRXRDY	  equ	  02h	;Transfer Port Rx ready bit
+TTXRDY	equ	01h		;Transfer Port Tx ready bit
+TRXRDY	equ	02h		;Transfer Port Rx ready bit
 
 TBD110	equ	10Fh	;0= 110 baud
 TBD150	equ	10Eh	;1= 150 baud
@@ -1007,7 +1006,7 @@ BD192	set	TRUE	;19200 baud supported
 
  if TC2718B
 TPORT	set	TRUE	;Transfer port is defined
-T8251	set TRUE
+T8251	set	TRUE
 TB8251	equ	CBASE+2		;Base of T-port 8251 registers
 
 TBD110	equ	1F0h	;0= 110 baud
@@ -1019,9 +1018,9 @@ TBD2400	equ	1C0h	;5= 2400 baud
 TBD4800	equ	190h	;6= 4800 baud
 TBD9600	equ	180H	;7= 9600 baud
 TBD192	equ	100h	;8= 19200 baud
-TBD384	equ	0	;9= 38400 baud (not supported)
-TBD576	equ	0	;a= 57600 baud (not supported)
-TBD768	equ	0	;b= 76800 baud (not supported)
+TBD384	equ	0		;9= 38400 baud (not supported)
+TBD576	equ	0		;a= 57600 baud (not supported)
+TBD768	equ	0		;b= 76800 baud (not supported)
 
 TSBAUD	set	TRUE	;software transfer port baud control
 BD192	set	TRUE	;19200 baud supported
@@ -1034,7 +1033,6 @@ BD192	set	TRUE	;19200 baud supported
 ;a Z80-CTC (counter/timer, which generates baud rates).
 ;-------------------------------------------------------
  if CC2719A or CC2719B or TC2719A or TC2719B
-
 DART	set	TRUE	;DART present
 
 DWR1	equ	1	;Write Register 1
@@ -1049,15 +1047,14 @@ DART2S	equ	4CH	;2 stop bits
 ;DART initialization sequence, both ports
 ;note: INIT code assumes that DI7 is UNIQUE
 
-DI1	equ	28h	;channel Reset
+DI1	equ	28h		;channel Reset
 DI2	equ	DWR1	;Access WR1
-DI3	equ	00h	;Disable interrupts
+DI3	equ	00h		;Disable interrupts
 DI4	equ	DWR3	;Access WR3
 DI5	equ	0C1h	;Rx 8-bit bytes, enable Rx
 DI6	equ	DWR5	;Access WR5
 DI7	equ	0EAh	;Tx 8-bit bytes, enable Tx, 
-			;handshakes true
-
+				;handshakes true
  endif ;CC2719A or CC2719B or TC2719A or TC2719B
 
  if CC2719A
@@ -1089,8 +1086,8 @@ TCTRL	equ	TBASE+7	;channel B control
  endif ;TC2719B
 
  if CC2719A or CC2719B
-CTXRDY	  equ	  04h	 ;Console Tx ready bit
-CRXRDY	  equ	  01h	 ;Console Rx ready bit
+CTXRDY	equ	04h		;Console Tx ready bit
+CRXRDY	equ	01h		;Console Rx ready bit
 
 ;Console Port baud rate values
 ;high byte must be written 1st
@@ -1109,22 +1106,22 @@ CBD576	equ	4702h	;a= 57600 baud
 CBD768	equ	0	;b= 76800 baud (not supported)
 
 CSBAUD	set	TRUE	;software Console
-			;..baud rate control
+					;..baud rate control
 CSTOP1	equ	DART1S
 CSTOP2	equ	DART2S
 
 CSTOPS	set	CSTOP2
  endif ;CC2719A or CC2719B
 
-  if (CC2719A or CC2719B) and ((0-CBAUD) SHR 15)
+ if (CC2719A or CC2719B) and ((0-CBAUD) SHR 15)
 CSTOPS	set	CSTOP1
  endif ;(CC2719A or CC2719B) and ((0-CBAUD) SHR 15)
 
  if TC2719A or TC2719B
 TPORT	set	TRUE	;Transfer port is defined
 
-TTXRDY	  equ	  04h	;Transfer Port Tx ready bit
-TRXRDY	  equ	  01h	;Transfer Port Rx ready bit
+TTXRDY	equ	04h		;Transfer Port Tx ready bit
+TRXRDY	equ	01h		;Transfer Port Rx ready bit
 
 ;Transfer Port baud rate values
 ;high byte must be written 1st
@@ -1140,7 +1137,7 @@ TBD9600	equ	470CH	;7= 9600 baud
 TBD192	equ	4706h	;8= 19200 baud
 TBD384	equ	4703h	;9= 38400 baud
 TBD576	equ	4702h	;a= 57600 baud
-TBD768	equ	0	;b= 76800 baud (not supported)
+TBD768	equ	0		;b= 76800 baud (not supported)
 
 BD192	set	TRUE	;19200 baud supported
 BD384	set	TRUE	;38400 baud supported
@@ -1158,7 +1155,7 @@ TSTOP2	equ	DART2S
 TSTOPS	set	TSTOP2
  endif ;TC2719A or TC2719B
 
-  if (TC2719A or TC2719B) and ((0-TBAUD) SHR 15)
+ if (TC2719A or TC2719B) and ((0-TBAUD) SHR 15)
 TSTOPS	set	TSTOP1
  endif ;(TC2719A or TC2719B) and ((0-TBAUD) SHR 15)
 
@@ -1203,8 +1200,8 @@ CSTAT	equ	CBASE	;Console status
 CCTRL	equ	CBASE	;Console control
 CDATA	equ	CBASE+1	;Console data
 
-CTXRDY	  equ	  01h	;channel a Tx ready bit
-CRXRDY	  equ	  02h	;channel a Rx ready bit
+CTXRDY	equ	01h	;channel a Tx ready bit
+CRXRDY	equ	02h	;channel a Rx ready bit
  endif ;CIFAC
 
  if TIFAC
@@ -1214,13 +1211,13 @@ TSTAT	equ	TBASE	;Transfer Port status
 TCTRL	equ	TBASE	;Transfer Port control
 TDATA	equ	TBASE+1	;Transfer Port data
 
-TTXRDY	  equ	  01h	;channel B Tx ready bit
-TRXRDY	  equ	  02h	;channel B Rx ready bit
+TTXRDY	equ	01h		;channel B Tx ready bit
+TRXRDY	equ	02h		;channel B Rx ready bit
  endif ;TIFAC
 
  if CIFAC or TIFAC
 IFRST	equ	0ACH	;reset: 8 data, no parity, flow
-			;..control outputs high, no ints
+					;..control outputs high, no ints
  endif	;CIFAC or TIFAC
 
 ;---------------------------------------------------------
@@ -1238,12 +1235,11 @@ CSTAT	equ	CBASE	;Console status
 CCTRL	equ	CBASE	;Console control
 CDATA	equ	CBASE+1	;Console data
 
-CTXRDY	  equ	  01h	;Console Tx ready bit
-CRXRDY	  equ	  02h	;Console Rx ready bit
+CTXRDY	equ	01h		;Console Tx ready bit
+CRXRDY	equ	02h		;Console Rx ready bit
 
 CIFRST	equ	0ACH	;reset: 8 data, no parity, flow
-			;..control outputs high, no ints
-
+					;..control outputs high, no ints
  endif ;CIFAC2
 
  if TIFAC2
@@ -1253,8 +1249,8 @@ TSTAT	equ	TBASE	;Transfer Port status
 TCTRL	equ	TBASE	;Transfer Port control
 TDATA	equ	TBASE+1	;Transfer Port data
 
-TTXRDY	  equ	  01h	;Transfer Port Tx ready bit
-TRXRDY	  equ	  02h	;Transfer Port Rx ready bit
+TTXRDY	equ	01h		;Transfer Port Tx ready bit
+TRXRDY	equ	02h		;Transfer Port Rx ready bit
 
 TIFRST	equ	0ACH	;reset: 8 data, no parity,
 			;..controls high, no ints
@@ -1273,8 +1269,8 @@ CSTAT	equ	CBASE+1	;Console status
 CMODE	equ	CBASE+2	;Console mode registers
 CCTRL	equ	CBASE+3	;Console command register
 
-CTXRDY	  equ	  01h	;channel a Tx ready bit
-CRXRDY	  equ	  02h	;channel a Rx ready bit
+CTXRDY	equ	01h		;channel a Tx ready bit
+CRXRDY	equ	02h		;channel a Rx ready bit
 
 CSTOP1	equ	06E00h	;8N1 x16
 CSTOP2	equ	0EE00h	;8N2 x16
@@ -1293,9 +1289,9 @@ CBD4800	equ	CSTOP1 or 7Ch	;4800 baud
 CBD9600	equ	CSTOP1 or 7Eh	;9600 baud
 CBD192	equ	CSTOP1 or 7Fh	;19200 baud
 CBD384	equ	0		;38400 baud (Not supported)
-CBD576	equ	0 		;57600 baud (not supported)
+CBD576	equ	0		;57600 baud (not supported)
 CBD768	equ	0		;76800 baud (Not supported)
-               
+
 CSBAUD	set	TRUE	;software Console baud control
  endif ;CSS1
 
@@ -1310,8 +1306,8 @@ CSBAUD	set	TRUE	;software Console baud control
 ;are built around the (very similar) TMS5501 UART
 ;------------------------------------------------------
  if CTUART or TTUART or CCFDCS or TCFDCS
-TURST	equ	  01h	;reset UART
-TUHBD	equ	  10h	;high baud rate
+TURST	equ	01h		;reset UART
+TUHBD	equ	10h		;high baud rate
  endif ;CTUART or TTUART or CCFDCS or TCFDCS
 
  if CTUART or CCFDCS
@@ -1346,11 +1342,11 @@ CBD576	equ	0 		;57600 baud (not supported)
 CBD768	equ	1040h or CSTOP1	;76800 baud
 
 CSBAUD	set	TRUE	;software Console
-			;..baud rate control
+					;..baud rate control
 CSTOPS	set	CSTOP2
  endif ;CTUART or CCFDCS
 
-  if (CTUART or CCFDCS) and ((0-CBAUD) SHR 15)
+ if (CTUART or CCFDCS) and ((0-CBAUD) SHR 15)
 CSTOPS	set	CSTOP1
  endif ;(CTUART or CCFDCS) and ((0-CBAUD) SHR 15)
 
@@ -1399,7 +1395,7 @@ TSBAUD	set	TRUE	;software T-port baud rate control
 TSTOPS	set	TSTOP2
  endif ;TTUART or TCFDCS
 
-  if (TTUART or TCFDCS) and ((0-TBAUD) SHR 15)
+ if (TTUART or TCFDCS) and ((0-TBAUD) SHR 15)
 TSTOPS	set	TSTOP1
  endif ;(TTUART or TCFDCS) and ((0-TBAUD) SHR 15)
 
@@ -1425,8 +1421,8 @@ TPORT	set	TRUE	;Transfer port is defined
 TSTAT	equ	TBASE	;Transfer Port status
 TDATA	equ	TBASE+1	;Transfer Port data
 
-TRXRDY	equ	01h	;Transfer port Rx data buffer full
-TTXRDY	equ	80h	;Transfer port Tx data buf available
+TRXRDY	equ	01h		;Transfer port Rx data buffer full
+TTXRDY	equ	80h		;Transfer port Tx data buf available
 
 TISTAT	set	TRUE	;Status bits are active-low
  endif ;TER2IO
@@ -1450,7 +1446,7 @@ TISTAT	set	TRUE	;Status bits are active-low
  if CH84
 C8250	set	TRUE
 CB8250	equ	CBASE
-CCRY160	equ	11520		;Crystal frequency/160
+CCRY160	equ	11520	;Crystal frequency/160
  endif ;CH84
 
 ;H8-4 serial Port As the Transfer Port
@@ -1459,7 +1455,7 @@ CCRY160	equ	11520		;Crystal frequency/160
 TPORT	set	TRUE
 T8250	set	TRUE
 TB8250	equ	TBASE
-TCRY160	equ	11520		;Crystal frequency/160
+TCRY160	equ	11520	;Crystal frequency/160
  endif ;TH84
 
 ;--------------------------------------------------------------
@@ -1507,7 +1503,6 @@ TB8251	equ	CBASE	;Base of T-port 8251 registers
 
  if CH85 or TH85
 P8INT3	equ	2025h	;Address of PAM-8/XCON-8 Int 3 vector 
-
  endif ;CH85 or TH85
 
 ;-----------------------------------------------------
@@ -1551,9 +1546,9 @@ SIOCTL	equ	TBASE+2	;SIO-2 int control port
  if CIMS440 or CIMS441 or TIMS440 or TIMS441
 IMSTC	equ	CBASE+7	;Timer Control Port
 IMSIE	equ	CBASE+8	;Interrupt Enable Port
-IVSIEV	equ	91h	;ROM enabled, ints masked
-ISTOP1	equ	19h	;8 bits, no parity
-ISTOP2	equ	1Dh	;8 bits, no parity
+IVSIEV	equ	91h		;ROM enabled, ints masked
+ISTOP1	equ	19h		;8 bits, no parity
+ISTOP2	equ	1Dh		;8 bits, no parity
  endif ;CIMS440 or CIMS441 or TIMS440 or TIMS441
 
  if CIMS440
@@ -1561,7 +1556,7 @@ CSTAT	equ	CBASE
 CCTRL	equ	CBASE
 CDATA	equ	CBASE+1
 CBPORT	equ	CBASE+4	;Baud Rate Port
-CISTCS	equ	36h	;Timer Control Select
+CISTCS	equ	36h		;Timer Control Select
  endif ;CIMS440
 
  if CIMS441
@@ -1569,15 +1564,15 @@ CSTAT	equ	CBASE+2
 CCTRL	equ	CBASE+2
 CDATA	equ	CBASE+3
 CBPORT	equ	CBASE+5	;Baud Rate Port
-CISTCS	equ	76h	;Timer Control Select
+CISTCS	equ	76h		;Timer Control Select
  endif ;CIMS441
 
  if CIMS440 or CIMS441
-CRXRDY	equ	01h	;Console receiver ready
-CTXRDY	equ	02h	;Console transmitter ready
-CIM44I	equ	19h	;8 bits, no parity, 1 stop
+CRXRDY	equ	01h		;Console receiver ready
+CTXRDY	equ	02h		;Console transmitter ready
+CIM44I	equ	19h		;8 bits, no parity, 1 stop
 CSBAUD	set	TRUE	;software Console
-			;..baud rate control
+					;..baud rate control
 
 ;Console Baud rates
 ;(Based on a 1.2288 MHz oscillator)
@@ -1603,7 +1598,7 @@ TSTAT	equ	TBASE
 TCTRL	equ	TBASE
 TDATA	equ	TBASE+1
 TBPORT	equ	CBASE+4	;Baud Rate Port
-TISTCS	equ	36h	;Timer Control Select
+TISTCS	equ	36h		;Timer Control Select
  endif ;TIMS440
 
  if TIMS441
@@ -1611,15 +1606,14 @@ TSTAT	equ	TBASE+2
 TCTRL	equ	TBASE+2
 TDATA	equ	TBASE+3
 TBPORT	equ	CBASE+5	;Baud Rate Port
-TISTCS	equ	76h	;Timer Control Select
+TISTCS	equ	76h		;Timer Control Select
  endif ;TIMS441
-
 
  if TIMS440 or TIMS441
 TPORT	set	TRUE	;Transfer port is defined
-TRXRDY	equ	01h	;Transfer port receiver ready
-TTXRDY	equ	02h	;Transfer port transmitter ready
-TIM44I	equ	19h	;8 bits, no parity, 1 stop
+TRXRDY	equ	01h		;Transfer port receiver ready
+TTXRDY	equ	02h		;Transfer port transmitter ready
+TIM44I	equ	19h		;8 bits, no parity, 1 stop
 ;Transfer Port Baud rates
 ;(Based on a 1.2288 MHz oscillator)
 TBD110	equ	02BAh	;110 baud
@@ -1633,7 +1627,7 @@ TBD9600	equ	0008h	;9600 baud
 TBD192	equ	0004h	;19200 baud
 
 TSBAUD	set	TRUE	;software Transfer Port
-			;..baud rate control
+					;..baud rate control
 BD192	set	TRUE	;19.2K baud allowed
 
 TSTOPS	set	ISTOP2
@@ -1680,11 +1674,10 @@ TCRY160	equ	11520	;1.8432 MHz clock
 ;rate generators.
 ;-----------------------------------------------------
  if CIVIO2 or TIVIO2
-
 IVSTOP1	equ	04E00h	;1 stop bit
 IVSTOP2	equ	0CE00h	;2 stop bits
 
-CTL2651	equ	27h	;Ctrl reg initialization value
+CTL2651	equ	27h		;Ctrl reg initialization value
  endif ;CIVIO2 or TIVIO2
 
  if CIVIO2
@@ -1693,8 +1686,8 @@ CSTAT	equ	CBASE+1
 CMODE	equ	CBASE+1
 CCTRL	equ	CBASE+3
 
-CTXRDY	equ	01h	;Console transmitter ready
-CRXRDY	equ	02h	;Console receiver ready
+CTXRDY	equ	01h		;Console transmitter ready
+CRXRDY	equ	02h		;Console receiver ready
 
 ;Console Port 2651 baud rates
 
@@ -1708,7 +1701,7 @@ CBD4800	equ	IVSTOP1 or 3Ch	;4800 baud
 CBD9600	equ	IVSTOP1 or 3Eh	;9600 baud
 CBD192	equ	IVSTOP1 or 3Fh	;19200 baud
 CBD384	equ	0		;38400 baud (Not supported)
-CBD576	equ	0 		;57600 baud (not supported)
+CBD576	equ	0		;57600 baud (not supported)
 CBD768	equ	0		;76800 baud (Not supported)
 
 CSBAUD	set	TRUE	;software Console baud control
@@ -1765,8 +1758,8 @@ CDATA	equ	CBASE
 CSTAT	equ	CBASE or 80h
 CCTRL	equ	CBASE or 80h
 
-CTXRDY	equ	80h	;Console transmitter ready
-CRXRDY	equ	10h	;Console receiver ready
+CTXRDY	equ	80h		;Console transmitter ready
+CRXRDY	equ	10h		;Console receiver ready
  endif ;CJADSP
 
  if TJADSP
@@ -1776,8 +1769,8 @@ TDATA	equ	TBASE
 TSTAT	equ	TBASE or 80h
 TCTRL	equ	TBASE or 80h
 
-TTXRDY	equ	80h	;T-port transmitter ready
-TRXRDY	equ	10h	;T-port receiver ready
+TTXRDY	equ	80h		;T-port transmitter ready
+TRXRDY	equ	10h		;T-port receiver ready
  endif ;TJADSP
 
 ;--------------------------------------------------
@@ -1823,13 +1816,12 @@ TMMIO	set	TRUE
  endif ;TMMIO1 or TMMIO2 or TMMIO3
 
  if TWBIO or TMMIO
-TPORT	set	TRUE		;Transfer port is defined
+TPORT	set	TRUE	;Transfer port is defined
 T8250	set	TRUE
 TB8250	equ	TBASE
-BD192	set	TRUE		;19.2K baud allowed
-BD384	set	TRUE		;38.4K baud allowed
-TCRY160	equ	11520		;Crystal frequency/160
-
+BD192	set	TRUE	;19.2K baud allowed
+BD384	set	TRUE	;38.4K baud allowed
+TCRY160	equ	11520	;Crystal frequency/160
  endif ;TWBIO or TMMIO
 
  if TWBIO1 or TMMIO1
@@ -1846,17 +1838,17 @@ TGROUP	equ	3		;Wunderbus group 3
 
  if CWBIO or TWBIO or CMMIO or TMMIO
 ;See Wunderbus I/O manual page 18
-WBSREG	equ	CBASE+1		;Switch register
-WBICW1	equ	CBASE+4		;Init control word 1
-WBICW2	equ	CBASE+5		;Init control word 2
-WBICW3	equ	CBASE+5		;Init control word 3
-WBICW4	equ	CBASE+5		;Init control word 4
-WBOCW1	equ	CBASE+5		;Operation Control Word 1
-WBGSP	equ	CBASE+7		;Group Select Port
+WBSREG	equ	CBASE+1	;Switch register
+WBICW1	equ	CBASE+4	;Init control word 1
+WBICW2	equ	CBASE+5	;Init control word 2
+WBICW3	equ	CBASE+5	;Init control word 3
+WBICW4	equ	CBASE+5	;Init control word 4
+WBOCW1	equ	CBASE+5	;Operation Control Word 1
+WBGSP	equ	CBASE+7	;Group Select Port
 
-WBINIT	equ	0FFh		;LOVECT+INIT+LTIM+ADI+SNGL+IC$
-WBHVCT	equ	0FFh		;High interrupt vector
-WBNOI	equ	0FFh		;mask all interrupts
+WBINIT	equ	0FFh	;LOVECT+INIT+LTIM+ADI+SNGL+IC$
+WBHVCT	equ	0FFh	;High interrupt vector
+WBNOI	equ	0FFh	;mask all interrupts
  endif ;CWBIO or TWBIO or CMMIO or TMMIO
 
  if CWBIO or TWBIO
@@ -1884,9 +1876,8 @@ CDATA	equ	CBASE+0602h	;Console data port
 CSTAT	equ	CBASE+060Ah	;Console status port
 CCTRL	equ	CBASE+060Ah	;Console control port
 
-CTXRDY	  equ	  01h	;Console transmitter ready
-CRXRDY	  equ	  02h	;Console receiver ready
-
+CTXRDY	equ	01h		;Console transmitter ready
+CRXRDY	equ	02h		;Console receiver ready
  endif ;CMDUBLR
 
  if TMDUBLR
@@ -1898,9 +1889,8 @@ TDATA	equ	TBASE+0602h	;Transfer data port
 TSTAT	equ	TBASE+060Ah	;Transfer status port
 TCTRL	equ	TBASE+060Ah	;Transfer control port
 
-TTXRDY	  equ	  01h	;Transfer transmitter ready
-TRXRDY	  equ	  02h	;Transfer receiver ready
-
+TTXRDY	equ	01h		;Transfer transmitter ready
+TRXRDY	equ	02h		;Transfer receiver ready
  endif ;TMDUBLR
 
 ;--------------------------------------------------
@@ -1963,30 +1953,30 @@ TB8251	equ	TBASE	;Base of T-port 8251 registers
 ;UART, with BR1941 programmable baud rate generator.
 ;---------------------------------------------------------
  if CSCP40 or CSCP41 or CSCP42 or CSCP43
-CSCP400	set	TRUE	
-C8251	set	TRUE		;8251 UART
-CSBAUD	set	TRUE		;software Console
-				;..baud rate control
+CSCP400	set	TRUE
+C8251	set	TRUE	;8251 UART
+CSBAUD	set	TRUE	;software Console
+					;..baud rate control
  endif ;CSCP40 or CSCP41 or CSCP42 or CSCP43
 
  if CSCP40
-CB8251	equ	CBASE		;Base of Console 8251 registers
-CBAUDP	equ	CBASE+8		;Buad Rate Port
+CB8251	equ	CBASE	;Base of Console 8251 registers
+CBAUDP	equ	CBASE+8	;Buad Rate Port
  endif ;CSCP40
 
  if CSCP41
-CB8251	equ	CBASE+2		;Base of Console 8251 registers
-CBAUDP	equ	CBASE+9		;Buad Rate Port
+CB8251	equ	CBASE+2	;Base of Console 8251 registers
+CBAUDP	equ	CBASE+9	;Buad Rate Port
  endif ;CSCP41
 
  if CSCP42
-CB8251	equ	CBASE+4		;Base of Console 8251 registers
-CBAUDP	equ	CBASE+10	;Buad Rate Port
+CB8251	equ	CBASE+4	;Base of Console 8251 registers
+CBAUDP	equ	CBASE+10;Buad Rate Port
  endif ;CSCP42
 
  if CSCP43
-CB8251	equ	CBASE+6		;Base of Console 8251 registers
-CBAUDP	equ	CBASE+11	;Buad Rate Port
+CB8251	equ	CBASE+6	;Base of Console 8251 registers
+CBAUDP	equ	CBASE+11;Buad Rate Port
  endif ;CSCP42
 
  if CSCP400
@@ -1995,7 +1985,7 @@ CBAUDP	equ	CBASE+11	;Buad Rate Port
 CBD110	equ	0002h	;110 baud
 CBD150	equ	0004h	;150 baud
 CBD300	equ	0005h	;300 baud
-CBD600	equ	0006h 	;600 baud
+CBD600	equ	0006h	;600 baud
 CBD1200	equ	0007h	;1200 baud
 CBD2400	equ	000Ah	;2400 baud
 CBD4800	equ	000Ch	;4800 baud
@@ -2004,31 +1994,31 @@ CBD192	equ	000Bh	;19200 baud
  endif ;CSCP400
 
  if TSCP40 or TSCP41 or TSCP42 or TSCP43
-TPORT	set	TRUE		;Transfer port is defined
-TSCP400	set	TRUE	
-T8251	set	TRUE		;8251 UART
-TSBAUD	set	TRUE		;software Console
-				;..baud rate control
+TPORT	set	TRUE	;Transfer port is defined
+TSCP400	set	TRUE
+T8251	set	TRUE	;8251 UART
+TSBAUD	set	TRUE	;software Console
+					;..baud rate control
  endif ;TSCP40 or TSCP41 or TSCP42 or TSCP43
 
  if TSCP40
-TB8251	equ	TBASE		;Base of Transfer Port 8251 registers
-TBAUDP	equ	TBASE+8		;Buad Rate Port
+TB8251	equ	TBASE	;Base of Transfer Port 8251 registers
+TBAUDP	equ	TBASE+8	;Buad Rate Port
  endif ;TSCP40
 
  if TSCP41
-TB8251	equ	TBASE+2		;Base of Transfer Port 8251 registers
-TBAUDP	equ	TBASE+9		;Buad Rate Port
+TB8251	equ	TBASE+2	;Base of Transfer Port 8251 registers
+TBAUDP	equ	TBASE+9	;Buad Rate Port
  endif ;TSCP41
 
  if TSCP42
-TB8251	equ	TBASE+4		;Base of Transfer Port 8251 registers
-TBAUDP	equ	TBASE+10	;Buad Rate Port
+TB8251	equ	TBASE+4	;Base of Transfer Port 8251 registers
+TBAUDP	equ	TBASE+10;Buad Rate Port
  endif ;TSCP42
 
  if TSCP43
-TB8251	equ	TBASE+6		;Base of Transfer Port 8251 registers
-TBAUDP	equ	TBASE+11	;Buad Rate Port
+TB8251	equ	TBASE+6	;Base of Transfer Port 8251 registers
+TBAUDP	equ	TBASE+11;Buad Rate Port
  endif ;TSCP42
 
  if TSCP400
@@ -2038,7 +2028,7 @@ TBAUDP	equ	TBASE+11	;Buad Rate Port
 TBD110	equ	0CE02h	;110 baud, 2 stops
 TBD150	equ	04E04h	;150 baud
 TBD300	equ	04E05h	;300 baud
-TBD600	equ	04E06h 	;600 baud
+TBD600	equ	04E06h	;600 baud
 TBD1200	equ	04E07h	;1200 baud
 TBD2400	equ	04E0Ah	;2400 baud
 TBD4800	equ	04E0Ch	;4800 baud
@@ -2063,9 +2053,8 @@ CSTAT	equ	CBASE	;Console status
 CCTRL	equ	CBASE	;Console control
 CDATA	equ	CBASE+1	;Console data
 
-CTXRDY	  equ	  80h	;transmitter buffer empty
-CRXRDY	  equ	  40h	;receive data available
-
+CTXRDY	equ	80h		;transmitter buffer empty
+CRXRDY	equ	40h		;receive data available
  endif ;CPT3PS
 
  if TPT3PS
@@ -2075,8 +2064,8 @@ TSTAT	equ	TBASE	;Transfer Port status
 TCTRL	equ	TBASE	;Transfer Port control
 TDATA	equ	TBASE+1	;Transfer Port data
 
-TTXRDY	  equ	  80h	;transmitter buffer empty
-TRXRDY	  equ	  40h	;receive data available
+TTXRDY	equ	80h		;transmitter buffer empty
+TRXRDY	equ	40h		;receive data available
  endif ;TPT3PS
 
 ;-----------------------------------------------
@@ -2144,7 +2133,6 @@ U68ST1	equ	00010101B	;1 stop bit, /16
  endif ;C6850 or T6850
 
 ; MC6850 as the Console Port
-
  if C6850
 CCTRL	equ	CB6850		;ACIA 0 control output port
 CSTAT	equ	CB6850		;ACIA 0 status input port
@@ -2155,7 +2143,6 @@ CTXRDY	equ	00000010B	;Console Tx data reg empty
  endif ;C6850
 
 ;MC6850 as the Transfer Port
-
  if T6850
 TCTRL	equ	TB6850		;ACIA 1 control output port
 TSTAT	equ	TB6850		;ACIA 1 status input port
@@ -2172,13 +2159,12 @@ TTXRDY	equ	00000010B	;Tr. Port Tx data reg empty
 ;INS8250 UART as the Console Port
 
  if C8250
-
-CRXRDY	equ	00000001b	;Rx data ready
-CTXRDY	equ	00100000b	;Tx buffer empty
+CRXRDY	equ	00000001b;Rx data ready
+CTXRDY	equ	00100000b;Tx buffer empty
 CDLAB	equ	80h		;Baud rate access
 
 CSBAUD	set	TRUE	;software Console
-			;..baud rate control
+					;..baud rate control
 ;Console Port baud rates
 
 CBD110	equ	CCRY160/11	;0= 110 baud (2 stop bits)
@@ -2189,11 +2175,11 @@ CBD1200	equ	CCRY160/120	;4= 1200 baud
 CBD2400	equ	CCRY160/240	;5= 2400 baud
 CBD4800	equ	CCRY160/480	;6= 4800 baud
 CBD9600	equ	CCRY160/960	;7= 9600 baud
-CBD192	equ	CCRY160/1920	;8= 19200 baud
-CBD384	equ	CCRY160/3840	;9= 38400 baud
+CBD192	equ	CCRY160/1920;8= 19200 baud
+CBD384	equ	CCRY160/3840;9= 38400 baud
 
-CSTOP1	equ	03h	;1 stop bit
-CSTOP2	equ	07h	;2 stop bits
+CSTOP1	equ	03h		;1 stop bit
+CSTOP2	equ	07h		;2 stop bits
 
 CDATA	equ	CB8250	;data port
 CSINTEN	equ	CDATA+1	;interrupt enable port
@@ -2213,7 +2199,6 @@ CSTOPS	set	CSTOP1
 ;INS8250 UART as the Transfer Port
 
  if T8250
-
 TRXRDY	equ	00000001b	;Rx data ready
 TTXRDY	equ	00100000b	;Tx buffer empty
 TDLAB	equ	80h		;Baud rate access
@@ -2221,7 +2206,7 @@ TDLAB	equ	80h		;Baud rate access
 TPORT	set	TRUE	;Transfer port is defined
 
 TSBAUD	set	TRUE	;software Transfer Port
-			;..baud rate control
+					;..baud rate control
 
 ;Transfer Port baud rates
 
@@ -2233,13 +2218,13 @@ TBD1200	equ	TCRY160/120	;4= 1200 baud
 TBD2400	equ	TCRY160/240	;5= 2400 baud
 TBD4800	equ	TCRY160/480	;6= 4800 baud
 TBD9600	equ	TCRY160/960	;7= 9600 baud
-TBD192	equ	TCRY160/1920	;8= 19200 baud
-TBD384	equ	TCRY160/3840	;9= 38400 baud
+TBD192	equ	TCRY160/1920;8= 19200 baud
+TBD384	equ	TCRY160/3840;9= 38400 baud
 
 BD192	set	TRUE	;19200 baud supported
 BD384	set	TRUE	;38400 baud supported
-TSTOP1	equ	03h	;1 stop bit
-TSTOP2	equ	07h	;2 stop bits
+TSTOP1	equ	03h		;1 stop bit
+TSTOP2	equ	07h		;2 stop bits
 
 TDATA	equ	TB8250	;data port
 TSINTEN	equ	TDATA+1	;interrupt enable port
@@ -2270,35 +2255,35 @@ CDATA	equ	CB8251		;Console data
 CSTAT	equ	CB8251+1	;Console status
 CCTRL	equ	CB8251+1	;Console control
 
-CTXRDY	  equ	  01h	  ;Console transmitter ready
-CRXRDY	  equ	  02h	  ;receiver ready
-CTXMTY	  equ	  04h	  ;Console Transmitter empty
- endif ;(C8251 or CWBIO) and (not CMEMAP)
+CTXRDY	equ	01h		;Console transmitter ready
+CRXRDY	equ	02h		;receiver ready
+CTXMTY	equ	04h		;Console Transmitter empty
+ endif ;(C8251 and (not CMEMAP)
 
  if T8251 and (not TMEMAP)
-TDATA	equ	TB8251		;Transfer port data
-TSTAT	equ	TB8251+1	;Transfer port status
-TCTRL	equ	TB8251+1	;Transfer port control
+TDATA	equ	TB8251	;Transfer port data
+TSTAT	equ	TB8251+1;Transfer port status
+TCTRL	equ	TB8251+1;Transfer port control
 
-TTXRDY	  equ	  01h	  ;Transfer port transmitter ready
-TRXRDY	  equ	  02h	  ;Transfer port receiver ready
-TTXMTY	  equ	  04h	  ;Transfer port Transmitter empty
+TTXRDY	equ	01h		;Transfer port transmitter ready
+TRXRDY	equ	02h		;Transfer port receiver ready
+TTXMTY	equ	04h		;Transfer port Transmitter empty
  endif ;T8251 and (not TMEMAP)
 
 ;initialization values for all 8251s
 
  if C8251 or T8251
-USTPS1	  equ	  04Eh	  ;8 bits, 1 stop, no parity, X16
-USTPS2	  equ	  0CEh	  ;8 bits, 2 stop, no parity, X16
-UCMDRE	  equ	  40h	  ;reset UART
-UCMDEN	  equ	  37h	  ;enable Tx & Rx, DTR, RTS ON
-UCMDEI	  equ	  36h	  ;enable Rx, disable Tx
+USTPS1	equ	04Eh	;8 bits, 1 stop, no parity, X16
+USTPS2	equ	0CEh	;8 bits, 2 stop, no parity, X16
+UCMDRE	equ	40h		;reset UART
+UCMDEN	equ	37h		;enable Tx & Rx, DTR, RTS ON
+UCMDEI	equ	36h		;enable Rx, disable Tx
 
 ;8251 reset sequence
 
 SI21	equ	0AAh	;Fake SYNC chr
 SI22	equ	UCMDRE	;reset command
-			;(3rd byte is USTPS1 or USTPS2)
+					;(3rd byte is USTPS1 or USTPS2)
 SI24	equ	UCMDEN	;enable Rx & Tx
  endif ;C8251 or T8251
 
@@ -2422,9 +2407,8 @@ TPBAUD	set	TBD768
 ;******************************************************
 
  if not (TRXINT or CRXINT)
-	RAMBEG	equ	STACK-STKSIZ-1
+RAMBEG	equ	STACK-STKSIZ-1
  endif ;not (TRXINT or CRXINT)
-
 
  if TRXINT or CRXINT
 RAMBEG	equ	TRXBUF
@@ -2435,54 +2419,54 @@ RAMBEG	equ	TRXBUF
 ;***************************
 ;Initialize some assembler variables
 				;Becomes TRUE if:
-BOOTER	set	FALSE		;  BO command exists
-JMPBOT	set	FALSE		;  BO uses onboard boot
-WD1771	set	FALSE		;  WD1771 controller
-WD179X	set	FALSE		;  WD179x controller
+BOOTER	set	FALSE	;  BO command exists
+JMPBOT	set	FALSE	;  BO uses onboard boot
+WD1771	set	FALSE	;  WD1771 controller
+WD179X	set	FALSE	;  WD179x controller
 
 ;-----------------------------------------------------------
 ;Altair 8800 Floppy Disk controller Equates (These are the
 ;same for the 88-DCDD controller and the 88-MDS controller.)
 ;-----------------------------------------------------------
  if A88DCD or A88MCD
-BOOTER	set	TRUE		;Boot command exists
+BOOTER	set	TRUE	;Boot command exists
 
-DENABL	equ	DIBASE		;Drive enable output
-DDISBL	  equ	  80h		  ;disable disk controller
+DENABL	equ	DIBASE	;Drive enable output
+DDISBL	equ	80h		;disable disk controller
 
-DSTAT	equ	DIBASE		;status input (active low)
-ENWDAT	  equ	  01h		  ;-enter write data
-MVHEAD	  equ	  02h		  ;-Move Head OK
-HDSTAT	  equ	  04h		  ;-Head status
-DRVRDY	  equ	  08h		  ;-Drive Ready
-INTSTA	  equ	  20h		  ;-interrupts enabled
-TRACK0	  equ	  40h		  ;-Track 0 detected
-NRDA	  equ	  80h		  ;-new Read data Available
+DSTAT	equ	DIBASE	;status input (active low)
+ENWDAT	equ	01h		;-enter write data
+MVHEAD	equ	02h		;-Move Head OK
+HDSTAT	equ	04h		;-Head status
+DRVRDY	equ	08h		;-Drive Ready
+INTSTA	equ	20h		;-interrupts enabled
+TRACK0	equ	40h		;-Track 0 detected
+NRDA	equ	80h		;-new Read data Available
 
 DCTRL	equ	DIBASE+1	;Drive control output
-STEPIN	  equ	  01h		  ;Step-In
-STEPOT	  equ	  02h		  ;Step-Out
-HEDLOD	  equ	  04h		  ;8" disk: load head
-				  ;Minidisk: restart
-				  ;..6.4 S timer
-HDUNLD	  equ	  08h		  ;unload head (8" only)
-IENABL	  equ	  10h		  ;enable sector interrupt
-IDSABL	  equ	  20h		  ;Disable interrupts
-WENABL	  equ	  80h		  ;enable drive write circuits
+STEPIN	equ	01h		;Step-In
+STEPOT	equ	02h		;Step-Out
+HEDLOD	equ	04h		;8" disk: load head
+					;Minidisk: restart
+					;..6.4 S timer
+HDUNLD	equ	08h		;unload head (8" only)
+IENABL	equ	10h		;enable sector interrupt
+IDSABL	equ	20h		;Disable interrupts
+WENABL	equ	80h		;enable drive write circuits
 
-DSECTR	equ	DIBASE+1	;Sector position input
-SVALID	  equ	  01h		  ;Sector valid (1st 30 uS
-				  ;..of sector pulse)
-SECMSK	  equ	  3Eh		  ;Sector mask for MDSEC
+DSECTR	equ	DIBASE+1;Sector position input
+SVALID	equ	01h		;Sector valid (1st 30 uS
+					;..of sector pulse)
+SECMSK	equ	3Eh		;Sector mask for MDSEC
 
-DDATA	equ	DIBASE+2	;Disk data (input/output)
+DDATA	equ	DIBASE+2;Disk data (input/output)
 
 ;Floppy Disk Parameters
 
-BPS	equ	128		;data bytes/sector
+BPS	equ	128			;data bytes/sector
 MDSPT	equ	16		;Minidisk sectors/track
-				;this code assumes SPT for 8"
-				;disks=MDSPT * 2.
+					;this code assumes SPT for 8"
+					;disks=MDSPT * 2.
 
 HDRSIZ	equ	3		;header bytes before data
 TLRSIZ	equ	2		;trailer bytes read after data
@@ -2502,28 +2486,27 @@ SCKSUM	equ	SMARKR+1	;checksum byte
 ;CCS 2422 Disk controller
 ;------------------------
  if CC2422
-
-BOOTER	set	TRUE		;Boot command exists
-WD179X	set	TRUE		;WD1793 controller
+BOOTER	set	TRUE	;Boot command exists
+WD179X	set	TRUE	;WD1793 controller
 
 MAXTRYS	equ	16		;max retries
 SECSIZ	equ	128		;bytes/sector
 BOTDSK	equ	0		;Boot disk
 BOTSEC	equ	1		;Boot sector
 BOTADR	equ	80h		;Load & Run boot sector here
-				;Code assumes xx80h
+					;Code assumes xx80h
 
 ;CCS 2422 floppy disk controller addresses
 
 BCTRL	equ	4		;Control port 2
 BSTAT	equ	4		;status port 2
 DSTAT	equ	30h		;disk status port
-DCMMD	equ	DSTAT		;disk command port
-DTRCK	equ	DSTAT+1		;track port
-DSCTR	equ	DSTAT+2		;sector port
-DDATA	equ	DSTAT+3		;data port
-DFLAG	equ	DSTAT+4		;disk flag port
-DCTRL	equ	DSTAT+4		;disk control port
+DCMMD	equ	DSTAT	;disk command port
+DTRCK	equ	DSTAT+1	;track port
+DSCTR	equ	DSTAT+2	;sector port
+DDATA	equ	DSTAT+3	;data port
+DFLAG	equ	DSTAT+4	;disk flag port
+DCTRL	equ	DSTAT+4	;disk control port
 
 ;Control register 1 (DCTRL) output bits
 
@@ -2553,7 +2536,7 @@ SIDE1	equ	BCROMEN+BCFSEEK
 ;Status register 1 (DFLAG) input bits
 
 DFINTRQ	equ	00000001b	;WD1793 INTRQ signal,
-				;active high
+						;active high
 DFDS1	equ	00000010b	;DS1 in control reg 1
 DFDS2	equ	00000100b	;DS2 in control reg 1
 DFDS3	equ	00001000b	;DS3 in control reg 1
@@ -2571,31 +2554,29 @@ BSIDE0	equ	00001000b	;SIDE0 bit in control reg 2
 BINDEX	equ	00010000b	;index signal, active low
 BDDEN	equ	00100000b	;DDEN signal in ctrl register 1
 BSIDED	equ	01000000b	;0=selected disk is 2-sided
-
  endif ;CC2422
 
 ;-----------------------------
 ;CompuPro DISK1A/DISK3 Equates
 ;-----------------------------
  if DISK1A8 or DISK1A5 or DISK3
-
-BOOTER	set	TRUE		;Boot command exists
+BOOTER	set	TRUE	;Boot command exists
 MAXTRYS	equ	10		;max retries
 
-XBOOT	EQU	100h			;Base Location of second phase loader in RAM
-MAP		EQU	XBOOT+400h		;allocation map address for bad DISK3 sectors
+XBOOT	EQU	100h		;Base Location of second phase loader in RAM
+MAP		EQU	XBOOT+400h	;allocation map address for bad DISK3 sectors
 ;
 ; Drive specific constants. (Set to handle nearly any drive)
-SRT		EQU	16 - 10			;10 millisecond step rate for controller value
-HUT		EQU	240 / 16		;Head unload delay time in milliseconds (240)
-HDLT	EQU	(35 + 1) / 2	;Head load time in milliseconds (35)
+SRT		EQU	16 - 10		;10 millisecond step rate for controller value
+HUT		EQU	240 / 16	;Head unload delay time in milliseconds (240)
+HDLT	EQU	(35 + 1) / 2;Head load time in milliseconds (35)
 ;
 ; controller port for Disk 1A at 0C0h
 FDPORT	EQU	0C0h
-NS$128	EQU	26	; 128 byte sectors / track	-- 3.25K
-NS$256	EQU	26	; 256 byte sectors / track	-- 6.5K
-NS$512	EQU	15	; 512 byte sectors / track	-- 7.5K
-NS1024	EQU	 8	;1024 byte sectors / track	-- 8K bytes total
+NS$128	EQU	26		; 128 byte sectors / track	-- 3.25K
+NS$256	EQU	26		; 256 byte sectors / track	-- 6.5K
+NS$512	EQU	15		; 512 byte sectors / track	-- 7.5K
+NS1024	EQU	8		;1024 byte sectors / track	-- 8K bytes total
 ;
 FDCS	equ	00h
 FDCD	equ	01h
@@ -2617,27 +2598,25 @@ D3SPEC	EQU	3	; DISK3 specify command
 D3MAP	EQU	4	; DISK3 bad map command
 D3HOME	EQU	5	; DISK3 home command
 D3RWCMD	EQU	8	; DISK3 read/write command
-
  endif ;DISK1A8 or DISK1A5 or DISK3
 
 ;---------------------------------
 ;Cromemco 4FDC/16FDC/64FDC Equates
 ;---------------------------------
  if C4FDC
-WD1771	set	TRUE		;WD1771 controller
+WD1771	set	TRUE	;WD1771 controller
  endif ;C4FDC
 
  if C16FDC or C64FDC
-WD179X	set	TRUE		;WD1793 controller
- ;C16FDC or C64FDC
+WD179X	set	TRUE	;WD1793 controller
+ endif ;C16FDC or C64FDC
 
  if C4FDC or C16FDC or C64FDC
-
 BOOTER	set	TRUE		;Boot command exists
 
 MAXDRV	equ	3		;drives 0-3 allowed
-BOTADR	equ	0080h		;boot and run address
-				;(code assumes xx80h)
+BOTADR	equ	0080h	;boot and run address
+					;(code assumes xx80h)
 BOTSEC	equ	1		;boot sector
 MAXTRYS	equ	10		;boot retries
 
@@ -2655,47 +2634,45 @@ DCTRL	equ	34h		;Control output
 
 ;DCTRL output bits
 
-DCDS0	equ	00000001B ;Drive Select 0
-DCDS1	equ	00000010B ;Drive Select 1
-DCDS2	equ	00000100B ;Drive Select 2
-DCDS3	equ	00001000B ;Drive Select 3
-DCSMSK	equ	11110000B ;Drive Select mask
-DCMAXI	equ	00010000B ;0=Mini, 1=Maxi
-DCMOTO	equ	00100000B ;Motor On
-DCMMSK	equ	11011111B ;Motor mask
-DCDDEN	equ	01000000B ;Enable Double Density
-DCAUTO	equ	10000000B ;Enable auto-wait
+DCDS0	equ	00000001B;Drive Select 0
+DCDS1	equ	00000010B;Drive Select 1
+DCDS2	equ	00000100B;Drive Select 2
+DCDS3	equ	00001000B;Drive Select 3
+DCSMSK	equ	11110000B;Drive Select mask
+DCMAXI	equ	00010000B;0=Mini, 1=Maxi
+DCMOTO	equ	00100000B;Motor On
+DCMMSK	equ	11011111B;Motor mask
+DCDDEN	equ	01000000B;Enable Double Density
+DCAUTO	equ	10000000B;Enable auto-wait
 
 ;ACTRL output bits (These are active-low)
 
-ACSID0	 equ	00000010B ;-Side select
-ACCTRL	 equ	00000100B ;-Control Out
-ACRSTR	 equ	00001000B ;-Restore
-ACFSEK	 equ	00010000B ;-Fast Seek
-ACDSO	 equ	00100000B ;-Drive Select Override
-ACEJCT	 equ	01000000B ;-EJECT
+ACSID0	equ	00000010B;-Side select
+ACCTRL	equ	00000100B;-Control Out
+ACRSTR	equ	00001000B;-Restore
+ACFSEK	equ	00010000B;-Fast Seek
+ACDSO	equ	00100000B;-Drive Select Override
+ACEJCT	equ	01000000B;-EJECT
 
 ;DFLAG input bits
 
-DFSEOJ  equ	00000001B ;Disk cmd complete
-DFAWTO	equ	00000010B ;Auto-wait timeout
-DFSMTO	equ	00000100B ;Motor timeout
-DFSMON	equ	00001000B ;1793 is requesting motors on
-DSFhLD	equ	00100000B ;1793 is requesting head load
-DSFDRQ	equ	10000000B ;1793 is requesting data
+DFSEOJ	equ	00000001B;Disk cmd complete
+DFAWTO	equ	00000010B;Auto-wait timeout
+DFSMTO	equ	00000100B;Motor timeout
+DFSMON	equ	00001000B;1793 is requesting motors on
+DSFhLD	equ	00100000B;1793 is requesting head load
+DSFDRQ	equ	10000000B;1793 is requesting data
 
 ;ASTAT bits
 
-DASSIP	equ	01000000B ;Seek in progress
-DASDRQ	equ	10000000B ;Data Request
-
+DASSIP	equ	01000000B;Seek in progress
+DASDRQ	equ	10000000B;Data Request
  endif ;C4FDC or C16FDC or C64FDC
 
 ;--------------------------
 ;Fulcrum Omnidisk conroller
 ;--------------------------
  if FULCRUM
-
 BOOTER	set	TRUE		;Boot command exists
 
 MAXDRV		equ	17H		;drives allowed
@@ -2717,15 +2694,13 @@ OC$READ0	equ	13		;Read
 OC$GENS		equ	22		;Get general status
 OC$EXTS		equ	23		;Get extended status
 OC$SFDP		equ	28		;Set Floppy Disk Parameters
-
  endif ; FULCRUM
 
 ;-------------------------
 ;IMSAI FIF Disk Controller
 ;-------------------------
  if IFIF
-
-BOOTER	set	TRUE		;Boot command exists
+BOOTER	set	TRUE	;Boot command exists
 
 MAXTRYS	equ	16		;max retries
 
@@ -2746,36 +2721,34 @@ IRDSEC	equ	21h		;Read sector
 ;RAM location for command strings
 
 IBCMD	equ	80h		;Beginning of disc command string
-				;..and command byte therEOF
-IBSTAT	equ	IBCMD+1		;Status byte
-IBTRK	equ	IBCMD+2		;Track (2 bytes)
-IBSECT	equ	IBCMD+4		;Sector
-IBUFAD	equ	IBCMD+5		;Buffer Address
+					;..and command byte therEOF
+IBSTAT	equ	IBCMD+1	;Status byte
+IBTRK	equ	IBCMD+2	;Track (2 bytes)
+IBSECT	equ	IBCMD+4	;Sector
+IBUFAD	equ	IBCMD+5	;Buffer Address
 
 ;Disk status
 
 ISUCCS	equ	01h		;Success
-
  endif ;IFIF
 
 ;------------------------------------------
 ;Micropolis FD controller B Disk Controller
 ;------------------------------------------
  if MICROP
-
-BOOTER	set	TRUE		;Boot command exists
+BOOTER	set	TRUE	;Boot command exists
 
 FDCMD	equ	DMBASE+200h	;Command register
 FDSECT	equ	DMBASE+200h	;Sector register
 FDSTAT	equ	DMBASE+201h	;Status register
 FDDATA	equ	DMBASE+203h	;Data in/out	
 
-SCLEN 	equ	268	;sector len without sync byte and checksum
+SCLEN 	equ	268		;sector len without sync byte and checksum
 PTROFF	equ	010Ah	;offset of load address
-			;..pointer within sector 0
-EXEOFF	equ	0CH	;offset into sector data for execution
+					;..pointer within sector 0
+EXEOFF	equ	0CH		;offset into sector data for execution
 
-MAXTRYS	equ	16	;max retries
+MAXTRYS	equ	16		;max retries
 
 ;Sector register is at FDCBASE+0
 
@@ -2786,33 +2759,33 @@ DTMR	equ	020h	;2mhz/4mhz jumper for timers
 
 ;Status register is at FDCBASE+1
 
-TFLG	equ	80h	;transfer flag
-INTE	equ	40h	;S-100 INTE signal
-RDY	equ	20h	;disk ready
-WPT	equ	10h	;write protect
-TK0	equ	08h	;track zero
-USLT	equ	04h	;unit selected
+TFLG	equ	80h		;transfer flag
+INTE	equ	40h		;S-100 INTE signal
+RDY		equ	20h		;disk ready
+WPT		equ	10h		;write protect
+TK0		equ	08h		;track zero
+USLT	equ	04h		;unit selected
 
 ;Command register at FDCBASE+0 (and again at FDCBASE+1)
 ;  bits 1-0 command modifier
 ;  bits 7-5 command
 
 SLUN	equ	020h	;select unit
-			;Modifier is unit address
+					;Modifier is unit address
 
 SINT	equ	040h	;set interrupt
-			;Modifier=1 enable int
-			;  	    0 disable int
+					;Modifier=1 enable int
+					;        =0 disable int
 
 STEP	equ	060h	;step carriage
 STEPO	equ	000h	;step out modifier
 STEPI	equ	001h	;step in modifier
 
 WTCMD	equ	080h	;enable write
-			;No modifier used
+					;No modifier used
 
 FRESET	equ	0A0h	;reset FDC
-			;No modifier used
+					;No modifier used
 
 ;RAM locations that must be initialized for DOS
 
@@ -2820,19 +2793,17 @@ ROMADR	equ	00A0h	;onboard ROM base address
 FDCADR	equ	00A2h	;Save FDC address here for DOS
 LODADR	equ	00A4h	;load address of sector
 RDSEC	equ	00A6h	;Read Sector subroutine
-			;..(once its moved)
+					;..(once its moved)
 
 RDSECH	equ	RDSEC+3	;enter here with hl=FDC address
-			;(entry point used during boot)
-
+					;(entry point used during boot)
  endif ;MICROP
 
 ;--------------------------------------------------------
 ;Northstar MDC-A and MDS-A Single-Density Disk Controller
 ;--------------------------------------------------------
  if NSTARS
-
-BOOTER	set	TRUE		;Boot command exists
+BOOTER	set	TRUE	;Boot command exists
 
 ;The Northstar MDC-A and MDS-A disk controllers work by reading
 ;and writing to memory addresses - no INs or outs occur.
@@ -2845,59 +2816,57 @@ CTLADR	equ	DMBASE+300h	;Disk Control base address
 
 ;controller commands (are at memory addresses)
 
-CTLDS0	  equ	  CTLADR+00h	  ;Select drive 0 (illegal)
-CTLDS1	  equ	  CTLADR+01h	  ;Select drive 1
-CTLDS2	  equ	  CTLADR+02h	  ;Select drive 2
-CTLDS3	  equ	  CTLADR+03h	  ;Select drive 3
-CTLWRT	  equ	  CTLADR+04h	  ;Initiate write
-CTLSTC	  equ	  CTLADR+08h	  ;Clear track-step f-f
-CTLSTS	  equ	  CTLADR+09h	  ;Set track-step f-f
-CTLDI	  equ	  CTLADR+0CH	  ;Disarm interrupts
-CTLEI	  equ	  CTLADR+0DH	  ;Arm interrupts
-CTLNOP	  equ	  CTLADR+10h	  ;No operation
-CTLRSF	  equ	  CTLADR+14h	  ;Reset sector flag
-CTLRES	  equ	  CTLADR+18h	  ;Reset controller
-CTLSTO	  equ	  CTLADR+1CH	  ;select step out
-CTLSTI	  equ	  CTLADR+1DH	  ;Select step in
-CTLBST	  equ	  CTLADR+20h	  ;Read B status
-CTLRD	  equ	  CTLADR+40h	  ;Read Data
-CTLMO	  equ	  CTLADR+80h	  ;Drive motors on command
+CTLDS0	equ	CTLADR+00h	;Select drive 0 (illegal)
+CTLDS1	equ	CTLADR+01h	;Select drive 1
+CTLDS2	equ	CTLADR+02h	;Select drive 2
+CTLDS3	equ	CTLADR+03h	;Select drive 3
+CTLWRT	equ	CTLADR+04h	;Initiate write
+CTLSTC	equ	CTLADR+08h	;Clear track-step f-f
+CTLSTS	equ	CTLADR+09h	;Set track-step f-f
+CTLDI	equ	CTLADR+0CH	;Disarm interrupts
+CTLEI	equ	CTLADR+0DH	;Arm interrupts
+CTLNOP	equ	CTLADR+10h	;No operation
+CTLRSF	equ	CTLADR+14h	;Reset sector flag
+CTLRES	equ	CTLADR+18h	;Reset controller
+CTLSTO	equ	CTLADR+1CH	;select step out
+CTLSTI	equ	CTLADR+1DH	;Select step in
+CTLBST	equ	CTLADR+20h	;Read B status
+CTLRD	equ	CTLADR+40h	;Read Data
+CTLMO	equ	CTLADR+80h	;Drive motors on command
 
 ;A-Status Bits
 
-SATR0	  equ	  01h		  ;Track 0
-SAWP	  equ	  02h		  ;Write protect
-SABDY	  equ	  04h		  ;Sync chr found
-SAWRT	  equ	  08h		  ;Ready for write data
-SAMO	  equ	  10h		  ;Motor is on
-SAWN	  equ	  40h		  ;Status read during window
-SASF	  equ 	  80h		  ;Sector flag
+SATR0	equ	01h		;Track 0
+SAWP	equ	02h		;Write protect
+SABDY	equ	04h		;Sync chr found
+SAWRT	equ	08h		;Ready for write data
+SAMO	equ	10h		;Motor is on
+SAWN	equ	40h		;Status read during window
+SASF	equ	80h		;Sector flag
 
 ;B-Status Bits
 
-SBSECT	  equ	  0Fh		  ;Sector position mask
-SBMO	  equ	  10h		  ;Motor is on
-SBWN	  equ	  40h		  ;Status read during window
-SBSF	  equ 	  80h		  ;Sector flag
+SBSECT	equ	0Fh		;Sector position mask
+SBMO	equ	10h		;Motor is on
+SBWN	equ	40h		;Status read during window
+SBSF	equ	80h		;Sector flag
 
 ;Constants
 
 UNINIT	equ	59h		;uinitialized RAM value
 MAXTRYS	equ	10		;Max retries
 BDRIVE	equ	1		;Boot drive
-				;..(Code assumes this is 01.)
+					;..(Code assumes this is 01.)
 BTRACK	equ	0		;Boot track
 BSECTR	equ	4		;Boot sector
-LODADR	equ	2000h		;Standard MDS-A load address
-EXEADR	equ	2000h		;..and execution address
-
+LODADR	equ	2000h	;Standard MDS-A load address
+EXEADR	equ	2000h	;..and execution address
  endif ;NSTARS
 
 ;----------------------------------------------
 ;Northstar MDS-D Double-Density Disk Controller
 ;----------------------------------------------
  if NSTARD
-
 BOOTER	set	TRUE		;Boot command exists
 
 ;The Northstar MDS-D disk controller works by reading and
@@ -2947,7 +2916,7 @@ SAMO	equ	10h		;Motor on
 SADD	equ	20h		;Double density detected
 SAIX	equ	40h		;Index hole on previous sector
 SASF	equ	80h		;Sector flag
-				;..(cleared by software)
+					;..(cleared by software)
 
 ;B-Status Bits
 
@@ -2958,7 +2927,7 @@ SBMO	equ	10h		;Motor on
 SBDD	equ	20h		;Double density detected
 SBIX	equ	40h		;Index hole on previous sector
 SBSF	equ	80h		;Sector flag
-				;..(cleared by software)
+					;..(cleared by software)
 
 ;C-Status Bits
 
@@ -2967,7 +2936,7 @@ SCMO	equ	10h		;Motor on
 SCDD	equ	20h		;Double density detected
 SCIX	equ	40h		;Index hole on previous sector
 SCSF	equ	80h		;Sector flag
-				;..(cleared by software)
+					;..(cleared by software)
 
 ;---------
 ;Constants
@@ -2975,7 +2944,6 @@ SCSF	equ	80h		;Sector flag
 MAXTRYS	equ	10		;max retries
 DDBSCR	equ	4		;Double-density boot sector
 SDBSCR	equ	8		;Single-density boot sector
-
  endif ;NSTARD
 
 ;-----------------------------------------
@@ -2984,36 +2952,33 @@ SDBSCR	equ	8		;Single-density boot sector
 ;for minidisks or 8" disks
 ;-----------------------------------------
  if VERSA1
-WD1771	set	TRUE		;WD1771 controller
+WD1771	set	TRUE	;WD1771 controller
  endif ;VERSA1
 
  if VERSA2 or SALFDC
-WD179X	set	TRUE		;WD1795 controller
+WD179X	set	TRUE	;WD1795 controller
  endif ;VERSA2 or SALFDC
 
  if VERSA1 or VERSA2 or SALFDC
-
-BOOTER	set	TRUE		;Boot command exists
+BOOTER	set	TRUE	;Boot command exists
 
 SECSIZ	equ	128		;boot sector size
-VLOAD	equ	0800h		;Boot code Load address
-VBOOT	equ	0080H		;Boot code exec address
+VLOAD	equ	0800h	;Boot code Load address
+VBOOT	equ	0080H	;Boot code exec address
 MAXTRYS	equ	16		;Max retries
 
 ;Port addresses
 
-VDRSEL	equ	DIBASE+3	;Drive select port
-VDCOM	equ	DIBASE+4	;WD1793 Command port
-VDSTAT	equ	DIBASE+4	;WD1793 Status port
-VTRACK	equ	DIBASE+5	;WD1793 Track port
-VSECT	equ	DIBASE+6	;WD1793 Sector Register
-VDDATA	equ	DIBASE+7	;WD1793 Data Register
-
+VDRSEL	equ	DIBASE+3;Drive select port
+VDCOM	equ	DIBASE+4;WD1793 Command port
+VDSTAT	equ	DIBASE+4;WD1793 Status port
+VTRACK	equ	DIBASE+5;WD1793 Track port
+VSECT	equ	DIBASE+6;WD1793 Sector Register
+VDDATA	equ	DIBASE+7;WD1793 Data Register
  endif ;VERSA1 or VERSA2 or SALFDC
 
  if VERSA1
 ;Versafloppy VDRSEL bit assignments (all active-low)
-
 VDSEL0N	equ	00000001b	;select drive 0
 VDSEL1N	equ	00000010b	;select drive 1
 VDSEL2N	equ	00000100b	;select drive 2
@@ -3026,7 +2991,6 @@ VINTEN	equ	10000000b	;Interrupt Enable
 
  if VERSA2 or SALFDC
 ;Versafloppy II VDRSEL bit assignments (all active-high)
-
 VDSEL0	equ	00000001b	;select drive 0
 VDSEL1	equ	00000010b	;select drive 1
 VDSEL2	equ	00000100b	;select drive 2
@@ -3041,31 +3005,30 @@ VWAIT	equ	10000000b	;Enable auto-wait circuit
 ;Tarbell Single- or Double-Density Disk Controller
 ;-------------------------------------------------
  if TARBL1
-WD1771	set	TRUE		;WD1771 controller
+WD1771	set	TRUE	;WD1771 controller
  endif ;TARBL1
 
  if TARBL2
-WD179X	set	TRUE		;WD1793 controller
+WD179X	set	TRUE	;WD1793 controller
  endif ;TARBL2
 
  if TARBL1 or TARBL2
+BOOTER	set	TRUE	;Boot command exists
 
-BOOTER	set	TRUE		;Boot command exists
-
-SBOOT	equ	007DH		;Boot code exec address
+SBOOT	equ	007DH	;Boot code exec address
 SLOAD	equ	0		;Code load address
 MAXTRYS	equ	16		;Max retries
 
-TDCOM	equ	DIBASE		;WD1793 Command port
-TDSTAT	equ	DIBASE		;WD1793 Status port
-TTRACK	equ	DIBASE+1	;WD1793 Track port
-TSECT	equ	DIBASE+2	;WD1793 Sector Register
-TDDATA	equ	DIBASE+3	;WD1793 Data Register
-TWAIT	equ	DIBASE+4	;Wait Input Register
+TDCOM	equ	DIBASE	;WD1793 Command port
+TDSTAT	equ	DIBASE	;WD1793 Status port
+TTRACK	equ	DIBASE+1;WD1793 Track port
+TSECT	equ	DIBASE+2;WD1793 Sector Register
+TDDATA	equ	DIBASE+3;WD1793 Data Register
+TWAIT	equ	DIBASE+4;Wait Input Register
  endif ;TARBL1 or TARBL2
 
  if TARBL1
-TEXTP	equ	DIBASE+4h	;Extended Output Port
+TEXTP	equ	DIBASE+4h;Extended Output Port
 
 ;Extended Output Port bits
 
@@ -3096,88 +3059,82 @@ TSIDE1	equ	01000000b	;Side 1 select
 ;------------------------------------------------
  if WD1771 or WD179X
 ;WD1771 & WD179x Commands
-
-RSTRCM	equ	00000000B ;(I)Restore
-SEEKCM	equ	00010000B ;(I)Seek
-STEPCM	equ	00100000B ;(I)Step
-STPICM	equ	01000000B ;(I)Step In
-STPOCM	equ	01100000B ;(I)Step Out
-RSECCM	equ	10000000B ;(II)Read Record
-WSECCM	equ	10100000B ;(II)Write Record
-RADRCM	equ	11000000B ;(III)Read addr
-RTRKCM	equ	11100000B ;(III)Read track
-WTRKCM	equ	11110000B ;(III)Write track
-FINTCM	equ	11010000B ;(IV)Force int
+RSTRCM	equ	00000000B;(I)Restore
+SEEKCM	equ	00010000B;(I)Seek
+STEPCM	equ	00100000B;(I)Step
+STPICM	equ	01000000B;(I)Step In
+STPOCM	equ	01100000B;(I)Step Out
+RSECCM	equ	10000000B;(II)Read Record
+WSECCM	equ	10100000B;(II)Write Record
+RADRCM	equ	11000000B;(III)Read addr
+RTRKCM	equ	11100000B;(III)Read track
+WTRKCM	equ	11110000B;(III)Write track
+FINTCM	equ	11010000B;(IV)Force int
  endif ;WD1771 or WD179X
 
  if WD179X
 ;1793 Command Options (1st letter matches 1793 spec)
-
-RS03MS	equ	00000000b ;(I) 3 mS step rate
-RS06MS	equ	00000001b ;(I) 6 mS step rate
-RS10MS	equ	00000010b ;(I) 10 mS step rate
-RS15MS	equ	00000011b ;(I) 15 mS step rate
-VERTRK	equ	00000100b ;(I) verify on destination track
-HDLOAD	equ	00001000b ;(I) head load
-UPDTTR	equ	00010000b ;(I) update track reg
-F1SCMP	equ	00000010b ;(II)enable side compare
-F2SCS1	equ	00001000b ;(II)side compare, side 1
-MULTCM	equ	00010000b ;(II) read/write multiple
-ED15MS	equ	00000100b ;(II & III) settling delay
-A0DDM	equ	00000001B ;(III)Write deleted-data mark
+RS03MS	equ	00000000b;(I) 3 mS step rate
+RS06MS	equ	00000001b;(I) 6 mS step rate
+RS10MS	equ	00000010b;(I) 10 mS step rate
+RS15MS	equ	00000011b;(I) 15 mS step rate
+VERTRK	equ	00000100b;(I) verify on destination track
+HDLOAD	equ	00001000b;(I) head load
+UPDTTR	equ	00010000b;(I) update track reg
+F1SCMP	equ	00000010b;(II)enable side compare
+F2SCS1	equ	00001000b;(II)side compare, side 1
+MULTCM	equ	00010000b;(II) read/write multiple
+ED15MS	equ	00000100b;(II & III) settling delay
+A0DDM	equ	00000001B;(III)Write deleted-data mark
 
 ;Composite 179x commands
 ;Note: For some controllers, disk will always appear
 ;ready if not HDLOAD.
 
-RESTOR	equ	RSTRCM+RS15MS+HDLOAD ;Restore
-RDSECT	equ	RSECCM+ED15MS+F1SCMP ;read sector, side 0
+RESTOR	equ	RSTRCM+RS15MS+HDLOAD;Restore
+RDSECT	equ	RSECCM+ED15MS+F1SCMP;read sector, side 0
  endif ;WD179X
 
  if WD1771
 ;1771 Command Options (1st letter matches 1771 spec)
-
-RS03MS	equ	00000000b ;(I) 3 mS step rate
-RS06MS	equ	00000001b ;(I) 6 mS step rate
-RS10MS	equ	00000010b ;(I) 10 mS step rate
-RS15MS	equ	00000011b ;(I) 15 mS step rate
-VERTRK	equ	00000100b ;(I) verify on destination track
-HDLOAD	equ	00001000b ;(I) head load
-UPDTTR	equ	00010000b ;(I) update track reg
-MULTCM	equ	00010000b ;(II) read/write multiple
-BLKLEN	equ	00001000b ;(II) Block Length (1=normal)
-EHDLDD	equ	00000100b ;(II) Enable ead Load Delay
-A1DM	equ	00000010b ;(II Write) Data Mark Control 1
-A0DM	equ	00000001b ;(II Write) Data Mark Control 0
-SYNAM	equ	00000001B ;(III) Sync to address mark
+RS03MS	equ	00000000b;(I) 3 mS step rate
+RS06MS	equ	00000001b;(I) 6 mS step rate
+RS10MS	equ	00000010b;(I) 10 mS step rate
+RS15MS	equ	00000011b;(I) 15 mS step rate
+VERTRK	equ	00000100b;(I) verify on destination track
+HDLOAD	equ	00001000b;(I) head load
+UPDTTR	equ	00010000b;(I) update track reg
+MULTCM	equ	00010000b;(II) read/write multiple
+BLKLEN	equ	00001000b;(II) Block Length (1=normal)
+EHDLDD	equ	00000100b;(II) Enable ead Load Delay
+A1DM	equ	00000010b;(II Write) Data Mark Control 1
+A0DM	equ	00000001b;(II Write) Data Mark Control 0
+SYNAM	equ	00000001B;(III) Sync to address mark
 
 ;Composite 1771 commands
 ;Note: For some controllers, disk will always appear
 ;ready if not HDLOAD.
 
-RESTOR	equ	RSTRCM+RS15MS+HDLOAD ;Restore
-RDSECT	equ	RSECCM+BLKLEN+EHDLDD ;read sector
+RESTOR	equ	RSTRCM+RS15MS+HDLOAD;Restore
+RDSECT	equ	RSECCM+BLKLEN+EHDLDD;read sector
  endif ;WD1771
 
  if WD1771 or WD179x
-
 ;WD1793 status after a command
-
-SBUSY	equ	00000001b ;(All) busy
-SCRCER	equ	00001000b ;(All) CRC error
-SWPROT	equ	01000000b ;(I and writes) write protect
-SNORDY	equ	10000000b ;(All) drive not ready
-SINDEX	equ	00000010b ;(I) index
-STRAK0	equ	00000100b ;(I) track 0
-SSEKER	equ	00010000b ;(I) seek error
-SHEADL	equ	00100000b ;(I) head loaded
-SWFALT	equ	00100000b ;(Write cmds) write fault
-SDATRQ	equ	00000010b ;(II & III) data request state
-SLOSTD	equ	00000100b ;(II & III) lost data error
-SRNFER	equ	00010000b ;(II & III) record not found
-SRCTYF	equ	00100000b ;(II & III) record type fault
-SWFALT	equ	00100000b ;(II & III) Write fault
-
+SBUSY	equ	00000001b;(All) busy
+SCRCER	equ	00001000b;(All) CRC error
+SWPROT	equ	01000000b;(I and writes) write protect
+SNORDY	equ	10000000b;(All) drive not ready
+SINDEX	equ	00000010b;(I) index
+STRAK0	equ	00000100b;(I) track 0
+SSEKER	equ	00010000b;(I) seek error
+SHEADL	equ	00100000b;(I) head loaded
+SWFALT	equ	00100000b;(Write cmds) write fault
+SDATRQ	equ	00000010b;(II & III) data request state
+SLOSTD	equ	00000100b;(II & III) lost data error
+SRNFER	equ	00010000b;(II & III) record not found
+SRCTYF	equ	00100000b;(II & III) record type fault
+SWFALT	equ	00100000b;(II & III) Write fault
  endif ;WD1771 or WD179x
 
 ;==================
@@ -3198,7 +3155,7 @@ SWFALT	equ	00100000b ;(II & III) Write fault
 	org	MEBASE		;Memon/80 ROM start
 
 MEINIT:	di			;(00)Cold-start entry point
-				;ints off for a little while
+					;ints off for a little while
 
 	xra	a
 	mov	d,a		;So code can recognize Memon
@@ -4750,7 +4707,7 @@ GETCSM:	call	GTPBYT		;get checksum in Z
 
  if HLRECS
 	pop	h		;record count
-	call	 CILPRT
+	call	CILPRT
 	db	'Recs:',' '+80h
 	jmp	PHLCHX		;hl in hex on Console
  endif ;HLRECS
@@ -5070,7 +5027,7 @@ TBC1:	out	TSLCTRL
 ;m=BRATE1 from the table
 	mov	a,c		;110 baud (c=0)?
 	ora	a
-	mvi	a,ISTOP1	 ;1 stop bit
+	mvi	a,ISTOP1	;1 stop bit
 	jnz	TBC1
 	mvi	a,ISTOP2 	;110 baud gets 2 stop bits
 TBC1:	out	TCTRL
@@ -5720,7 +5677,7 @@ DATLUP:	in	DSTAT		;(10)Read the drive status
 ;8327 cycles for this section
 ;------------------------------------------------
 	mvi	e,SDATA and 0FFh ;(7)de= address of sector data
-				 ;..within the sector buffer
+				;..within the sector buffer
 
 MOVLUP:	ldax	d		;(7)get sector buffer byte
 	mov	m,a		;(7)store it at the destination
@@ -7083,7 +7040,7 @@ UNSTUK:	call	HSTEP		;exits with de=0,
 ;seek track 0
 
 	lxi	b,(90*256)+STEP+STEPO ;b=90 steps max,
-				      ;..c=step out
+					;..c=step out
 
 SEEK0:	call	HSTEP		;exits with de=0,
 				;..a=status reg value
@@ -7462,15 +7419,15 @@ STAL68:	dcr	e		;(5)
 ;Step in to track 1 and hunt for sector 8
 ;(Sector 8 is a special 512-byte boot sector.)
 ;---------------------------------------------
-	inr	e		   ;e=1
-	mvi	l,ORDSIN+ORDDS1	   ;Step in once to track 1
+	inr	e			;e=1
+	mvi	l,ORDSIN+ORDDS1	;Step in once to track 1
 	call	STEP
 
-SDRSCT:	call	WSECT1		   ;Wait for 1 sector time
+SDRSCT:	call	WSECT1		;Wait for 1 sector time
 
-	lda	CTLCMD+CTLCS+CTLMO ;Read C-Status
-	ani	SCSM		   ;Sector mask
-	cpi	SDBSCR		   ;single-density boot sector
+	lda	CTLCMD+CTLCS+CTLMO;Read C-Status
+	ani	SCSM		;Sector mask
+	cpi	SDBSCR		;single-density boot sector
 	jnz	SDRSCT
 
 ;Fall into GETSEC
@@ -7575,14 +7532,14 @@ WSECT1:	mvi	d,1
 ;----------------------------------
 WSECTD:	lda	CTLCMD+CTLAS+CTLRSF ;Reset sector flag
 
-WSECTR:	lda	CTLCMD+CTLAS	    ;Read A-Status
-	ora	a		    ;Test SASF (Sector flag)
-				    ;clears carry too
-	jp	WSECTR		    ;Wait for sector
+WSECTR:	lda	CTLCMD+CTLAS	;Read A-Status
+	ora	a			;Test SASF (Sector flag)
+					;clears carry too
+	jp	WSECTR		;Wait for sector
 
-	dcr	d		    ;next sector
-	lda	CTLCMD+CTLAS+CTLRSF ;Reset sector flag
-	jnz	WSECTD		    ;more sectors to wait?
+	dcr	d			;next sector
+	lda	CTLCMD+CTLAS+CTLRSF;Reset sector flag
+	jnz	WSECTD		;more sectors to wait?
 
 	ret
 
@@ -7841,8 +7798,8 @@ GBOCMD:	lxi	b,4000h+MAXTRYS	;b=home error code
  endif ;VERSA1
  if VERSA2 or SALFDC
 
-	mvi	a,VDSEL0 + VMINI ;select drive 0,
-				 ;..assume mini for now
+	mvi	a,VDSEL0 + VMINI;select drive 0,
+					;..assume mini for now
  endif ;VERSA2 or SALFDC
  if VERSA1 or VERSA2 or SALFDC
 
