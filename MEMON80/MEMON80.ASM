@@ -493,6 +493,8 @@ TARBL2	equ	FALSE	;Tarbell 2022
 ;--------------------------------------------------------------
 ; MITS Altair 88-DCDD/88-MDS  08h     0Ah
 ; CCS 2422 Disk controller   {04h & 30h-34h}
+; CompuPro DISK1A             0C0h    0C3h
+; CompuPro DISK3              090h    090h
 ; Cromemco 4FDC/16FDC/64FDC  {04h & 30h-34h}
 ; Fulcrum Omnidisk controller 0A0H    0A1H
 ; Heathkit H17                                 01800h    01FFFh
@@ -2572,7 +2574,7 @@ HUT		EQU	240 / 16	;Head unload delay time in milliseconds (240)
 HDLT	EQU	(35 + 1) / 2;Head load time in milliseconds (35)
 ;
 ; controller port for Disk 1A at 0C0h
-FDPORT	EQU	0C0h
+FDPORT	EQU	DIBASE
 NS$128	EQU	26		; 128 byte sectors / track	-- 3.25K
 NS$256	EQU	26		; 256 byte sectors / track	-- 6.5K
 NS$512	EQU	15		; 512 byte sectors / track	-- 7.5K
@@ -2590,7 +2592,7 @@ FD$EOC	equ	80h
 FD$RSTS	equ	08h
 ;
 ;	DISK3 equates follow:
-D3PORT	EQU 90h	; DISK3 IO port
+D3PORT	EQU DIBASE
 D3NOP	EQU	0	; DISK3 no-op command
 D3RDFL	EQU 1	; DISK3 read flag
 D3GLBAL	EQU	2	; DISK3 global command
