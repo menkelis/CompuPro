@@ -13,8 +13,8 @@
 ; REN MDISK100.COM=MDISK.COM
 
 
-;	ORG	0000h
-	ORG	0100h
+	ORG	0000h
+;	ORG	0100h
 
 ;
 ;	M - D R I V E / H
@@ -122,7 +122,7 @@ HOME:	LXI		H,0
 ;	a disk transfer.  The track is save whether or not the memory disk
 ;	is currently selected.
 ;
-;	ENTRY -- BC = Track number.
+;	ENTRY -- BC = Track number, 0 ~ 65535.
 ;
 SETTRK:	MOV		L,C
 		MOV		H,B
@@ -133,11 +133,12 @@ SETTRK:	MOV		L,C
 ;
 ;	Set	sector number.  The sector number is save for later use during
 ;	a disk transfer.  The sector is saved whether or not the memory
-;	disk 1s current1y selected.
+;	disk is current1y selected.
 ;
-;	ENTRY -- BC = Sector number.
+;	ENTRY -- BC = Sector number, 1 ~ 255.
 
 SETSEC:	MOV		A,C
+		DCR		A			;Starts at 0
 		STA		SECTOR		;Set sector
 		JMP		BIOSSEC		;ON TO BIOS
 ;
@@ -165,12 +166,12 @@ SETDMA:	MOV		L,C
 ;
 ;	EXIT	HL = Physical sector number.
 ;
-SECTRN:	MOV		A,D			;DE=Translation table address
-		ORA		E			;Are we using translation?
-		JNZ		BIOSTRN		;Yes, Let BIOS translate
-		MOV		H,B			;No translation required
+SECTRN:	MOV		H,B
 		MOV		L,C			;HL=Physical sector number
-		RET					;And done
+		MOV		A,D			;DE=Translation table address
+		ORA		E			;Are we using translation?
+		RZ					;No, All done
+		JMP		BIOSTRN		;Yes, Let BIOS translate
 ;
 ;	R E A D
 ;
@@ -257,8 +258,7 @@ M$WRITE:MOV		A,M			;GET BYTE FROH BUFFER
 		RET					;RETURN
 ;
 ;	Set	M-DRIVE/H board to address In <HL>
-SETMDRV:
-		LDA		SECTOR		;Get sector, Starts at 0
+SETMDRV:LDA		SECTOR		;Get sector
 		OUT		HADDR		;<A>: to M-DRIVE/H board
 		MOV		A,H			;<H>: is always 0 or 1
 		OUT		HADDR
