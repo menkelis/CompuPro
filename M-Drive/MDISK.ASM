@@ -37,19 +37,19 @@
 ;
 ;	Updated for use by self-installer by Michael Enkelis 2023
 ;	Self-installer written by Michael Enkelis with some code
-;	written by Mike Douglas 2017
+;	written by Mike Douglas 2017.
 
 HBASE	EQU	0C6h
 HDATA	EQU	HBASE
 HADDR	EQU	HBASE+1
 
 MEMDRV	EQU	'M'				;SET AS DRIVE "M"
-spt		equ	8				;Sectors per track
+SPT		equ	8				;Sectors per track
 secsize	equ	128				;Size of sector in bytes
 NOTHING	equ	0
 
 SIB:	EQU	2048/secsize	;SECTORS IN MEMORY DRIVE DATA BLOCK
-DSM:	EQU	((512-4)*spt)/SIB
+DSM:	EQU	((512-4)*SPT)/SIB
 ;
 MDRIVE:	JMP		HOME		;HOME
 		JMP		SELDSK		;SELECT DISK
@@ -59,7 +59,8 @@ MDRIVE:	JMP		HOME		;HOME
 		JMP		READ		;READ
 		JMP		WRITE		;WRITE
 		JMP		SECTRN		;SECT0R TRANSLATE
-
+;
+; Following filled in by installer.
 BIOSHOM:JMP		NOTHING		;HOME
 BIOSSEL:JMP		NOTHING		;SELECT DISK
 BIOSTRK:JMP		NOTHING		;SET TRACK
@@ -69,17 +70,22 @@ BIOSRED:JMP		NOTHING		;READ
 BIOSWRT:JMP		NOTHING		;WRITE
 BIOSTRN:JMP		NOTHING		;SECT0R TRANSLATE
 
-DRIVE:	DW		MDISKL		;Filled in by loader with MEMDRV-'A', M-DRIVE/H TYPE
-							;DO NOT CHANGE VALUE OR LOCATION
+
+;
+;	Driver variables used (set) by loader.
+;
+DRIVE:	DW		MDISKL		;Read by loader. DO NOT CHANGE VALUE OR LOCATION
+							;Filled in by loader with DRIVE (MEMDRV-'A') code
+							;Filled in by loader with M-DRIVE/H TYPE flag
+
 ;
 ;	Disk Parameter Block
 ;
 MD$DPB:						;SET FOR 1 BOARD, 8 SPT
-		DW	spt				;SPT* (SECTORS PER TRACK, THIS AND EXM, DSM ...
-							;...MUST BE CHANGED FOR MORE BOARDS)
+		DW	SPT				;SPT (See NOTE)
 		DB	4,15			;BSH, BLH
-		DB	1				;EXM*
-		DW	DSM-1			;DSM*
+		DB	1				;EXM (See NOTE)
+		DW	DSM-1			;DSM (See NOTE)
 		DW	128-1			;DRM
 		DB	0C0h,00h		;AL0, AL1 (RESERVED DIR BLOCKS, MUST MATCH ...
 							; ... NUMBER OF DIRECTORY ENTRIES)
@@ -87,31 +93,43 @@ MD$DPB:						;SET FOR 1 BOARD, 8 SPT
 		DW	4				;OFF (NUMBER OF RESERVED TRAGKS FOR PARITY CHECK
 							;	THIS IS ALWAYS 4)
 ;
+; NOTE: SPT, EXM, DSM --- WILL BE CHANGED FOR MORE BOARDS BY LOADER.
+
+SELFLG:	DB		0			;M-DRIVE/H selected flag. DO NOT CHANGE LOCATION
+							;0 = Not selected, -1 Selected
+;
+;	16 byte Disk Parameter Header
+;
+MD$DPH:	DW	0				;SECT0R TRANSLATE TABLE (NONE)
+		DW	0,0,0			;SCRATCH AREA
+		DW	BUFDIR			;DIRECT0RY BUFFER
+		DW	MD$DPB			;DPB BLOCK
+		DW	0				;CHECKSUM VECTOR
+		DW	ALV				;ALL0CATI0N VECTOR
+
+;
 ;	S E L E C T   D I S K   D RI V E
 
 ;	Select the disk drive for subsequent disk transfers and return
 ;	the address of the DPH for the memory drive.
-;	ENTRY -- C = disk selection value
-;	  DE and l = 0 must determine disk type
-;	           = 1 type already determined (only needed for floppies)
+;	ENTRY -- <C> = disk selection value.
 ;
-;	EXIT -- HL = DPH address of the memory drive.
+;	EXIT -- <HL> = DPH address of the memory drive.
 ;	        If memory drive not selected, control is passed to BIOS
-;
-SELDSK:	LXI		H,SELFLG
-		XRA		A			;CLEAR A
-		MOV		M,A			;CLEAR MEMORY DRIVE FLAG
-		LDA		DRIVE		;
-		SUB		C			;IS MEMORY DRIVE SELECTED
+;			Return <HL> = 0 if invalid drive selected.
+
+SELDSK:	LXI		H,SELFLG	;<HL> = Selected flag
+		MVI		M,0			;M=0, SET MEMORY DRIVE AS NOT SELECTED
+		LDA		DRIVE		;<A>=DRIVE code
+		CMP		C			;IS MEMORY DRIVE SELECTED?
 		JNZ		BIOSSEL		;IF NOT GO BACK TO BIOS
-		CMA					;A=-1
-		MOV		M,A			;SELFLG= -1, SET MEMORY DRIVE AS SELECTED
+		DCR		M			;M=-1, SET MEMORY DRIVE AS SELECTED
 		INX		H			;<HL> = DPH ADDRESS
 		RET					;AND DONE
 ;
 ;	H O M E
 ;	Set current track to 0
-;
+
 HOME:	LXI		H,0
 		SHLD	TRACK		;SET TRACK AS 0
 		JMP		BIOSHOM		;ON TO BIOS
@@ -122,8 +140,8 @@ HOME:	LXI		H,0
 ;	a disk transfer.  The track is save whether or not the memory disk
 ;	is currently selected.
 ;
-;	ENTRY -- BC = Track number, 0 ~ 65535.
-;
+;	ENTRY -- <BC> = Track number, 0 to 65535.
+
 SETTRK:	MOV		L,C
 		MOV		H,B
 		SHLD	TRACK
@@ -135,10 +153,9 @@ SETTRK:	MOV		L,C
 ;	a disk transfer.  The sector is saved whether or not the memory
 ;	disk is current1y selected.
 ;
-;	ENTRY -- BC = Sector number, 1 ~ 255.
+;	ENTRY -- <BC> = Sector number, 0 to 255.
 
 SETSEC:	MOV		A,C
-		DCR		A			;Starts at 0
 		STA		SECTOR		;Set sector
 		JMP		BIOSSEC		;ON TO BIOS
 ;
@@ -149,7 +166,7 @@ SETSEC:	MOV		A,C
 ;	The address is saved whether or not the memory disk ia
 ;	currently selected.
 ;
-;	ENTRY -- BC = Disk memory address.
+;	ENTRY -- <BC> = Disk memory address.
 
 SETDMA:	MOV		L,C
 		MOV		H,B
@@ -160,24 +177,25 @@ SETDMA:	MOV		L,C
 ;
 ;	Translate the sector number from logical to physical.
 ;
-;	ENTRY	DE = 0, no translatlon required.
-;           DE = Translation table address.
-;           BC = Number to translate.
+;	ENTRY	<DE> = 0, no translatlon required.
+;           <DE> = Translation table address.
+;           <BC> = Number to translate.
 ;
-;	EXIT	HL = Physical sector number.
-;
+;	EXIT	<HL> = Physical sector number.
+
 SECTRN:	MOV		H,B
 		MOV		L,C			;HL=Physical sector number
 		MOV		A,D			;DE=Translation table address
 		ORA		E			;Are we using translation?
 		RZ					;No, All done
 		JMP		BIOSTRN		;Yes, Let BIOS translate
+
 ;
 ;	R E A D
 ;
 ;	Read the currently selected track,sector from the currently
 ;	selected drive.
-;
+
 READ:	LDA		SELFLG		;SELFLG= -1 if selected
 		ANA		A			;IS MEMORY DRIVE SELECTED
 		JZ		BIOSRED		;ON TO BIOS
@@ -187,7 +205,7 @@ READ:	LDA		SELFLG		;SELFLG= -1 if selected
 ;
 ;	Write to the current1y selected drive at the current track
 ;	and sector.
-;
+
 WRITE:	LDA		SELFLG		;SELFLG= -1 if selected
 		ANA		A			;IS MEMORY DRIVE SELECTED
 		JZ		BIOSWRT		;ON TO BIOS
@@ -197,7 +215,7 @@ WRITE:	LDA		SELFLG		;SELFLG= -1 if selected
 ;
 ;	MDFNL - Hard memory disk final command processing
 ;	ENTRY: <A> = Command. -1 = READ, 0 = WRITE
-;
+
 MDFNL:	MOV		B,A			;Save command
 		LHLD	TRACK		;GET TRACK
 		MOV		D,H			;
@@ -215,7 +233,7 @@ MDFNL:	MOV		B,A			;Save command
 		INR		B			;<B>=0 READ [Z=1], 1 WRITE [Z=0]
 		MOV		B,C			;Set <B> for parity check
 		JNZ		M$WRITE		;IF WRITE COMMAND JUMP
-;
+
 ;		Fall into M$READ
 ;
 ;	GET A 128 BYTE BLOCK FROM M-DRIVE/H BOARD
@@ -224,6 +242,7 @@ MDFNL:	MOV		B,A			;Save command
 ;			 <HL> IS DMA BUFFER TO PUT DATA
 ;
 ;	EXIT -- <A> = 0 No errors, > 0 READ error.
+
 M$READ:	IN		HDATA		;GET DATA BYTE
 		MOV		M,A			;PUT TO DMA BLOCK
 		INX		H			;UP POINTER
@@ -243,6 +262,7 @@ M$READ:	IN		HDATA		;GET DATA BYTE
 ;			 <HL> IS DMA BUFFER TO GET DATA FROM
 ;
 ;	EXIT -- <A> = 0 No errors.
+
 M$WRITE:MOV		A,M			;GET BYTE FROH BUFFER
 		INX		H			;UP POINTER
 		OUT		HDATA		;TO MDRIVE BOARD
@@ -257,34 +277,30 @@ M$WRITE:MOV		A,M			;GET BYTE FROH BUFFER
 		XRA		A			;AND SHOW NO ERROR
 		RET					;RETURN
 ;
-;	Set	M-DRIVE/H board to address In <HL>
-SETMDRV:LDA		SECTOR		;Get sector
+;	Set	M-DRIVE/H board to address in <HL>
+;	The combined values of <AHL> is a 24 bit number
+;	which is three more bits for a 2 Mbyte card, and
+;	five more bits than a 512 Kbyte card.
+
+SETMDRV:LDA		SECTOR		;Get sector 0-31 (0x1F)
 		OUT		HADDR		;<A>: to M-DRIVE/H board
 		MOV		A,H			;<H>: is always 0 or 1
 		OUT		HADDR
 		MOV		A,L			;<L>: Upper bit's picks track 0-3
 		OUT		HADDR		; remainder picks sector and byte
 		RET
+
+MDISKL:	EQU		$-MDRIVE	;LENGTH OF MDRIVE BIOS
+;	End of code
+
 ;
 ;	Flags and Buffers
 ;
-SELFLG:	DB		0			;0 = Not selected, -1 Selected
-;
-;	Disk Parameter Header
-;
-MD$DPH:	DW	0				;SECT0R TRANSLATE TABLE
-		DW	0,0,0			;SCRATCH
-		DW	BUFDIR			;DIRECT0RY BUFFER
-		DW	MD$DPB			;DPB BLOCK
-		DW	0				;CHECKSUM VECTOR
-		DW	ALV				;ALL0CATI0N VECTOR
-;
-SECTOR:	DB		0			;SECTOR: 0-255
-TRACK:	DW		0			;TRACK:  0-65535
-DMAADR:	DW		0			;ADDRESS OF DMA BUFFER
-;	End of initialized code
-MDISKL:	EQU		$-MDRIVE	;LENGTH OF MDRIVE BIOS
-BUFDIR:	DS		80H			;DIRECTORY BUFFER
-ALV:	DS		(((DSM*spt)+7)/spt)+1
+
+SECTOR:	DS		1			;SECTOR: 0-31
+TRACK:	DS		2			;TRACK:  0-65535
+DMAADR:	DS		2			;ADDRESS OF DMA BUFFER
+BUFDIR:	DS		128			;DIRECTORY BUFFER
+ALV:	DS		(((DSM*SPT)+7)/SPT)+1
 
 	END
