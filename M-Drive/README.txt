@@ -56,11 +56,15 @@ MTEST [-P -Q] [ -B[num] -F[pat] | -R | -V[pat] ]
 -B=Number of boards, 1 to 8
 No args runs Random, then Fixed tests
 
-Example:	Test one M-DRIVE/H
+Example:	Test ALL M-DRIVE/H
 			Using RANDOM patterns
 	MTEST
 
 Example:	Test one M-DRIVE/H
+			Using RANDOM patterns
+	MTEST -B 1
+
+Example:	Test ALL M-DRIVE/H
 			Using FIXED pattern 'E5'
 	MTEST -F E5
 

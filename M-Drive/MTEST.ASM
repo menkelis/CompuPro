@@ -36,6 +36,7 @@ BDOS		equ		005H
 			org		100H		;TPA
 
 			lxi		sp,stack
+			call	findBOARDS
 if 0
 	lxi	h,80h
 	mvi		m,5
@@ -140,6 +141,7 @@ Bad$cmd:	lxi		d,bad$msg
 Random:		mvi		a,0			;Use random patterns
 			sta		pattern
 			call	Calc$Blks	;Find last block address
+			call	Info$Boards	;Number of boards to test
 			call	Info$Pats	;Info on test patterns
 			call	Test$RAM
 			jmp		0			;warm boot
@@ -153,6 +155,7 @@ Fixed:		mvi		a,0E5h		;Use fixed pattern
 			lda		value
 			sta		pattern		;Use fixed pattern
 Fixed$1:	call	Calc$Blks	;Find last block address
+			call	Info$Boards	;Number of boards to test
 			call	Info$Pats	;Info on test patterns
 			call	Test$RAM
 			jmp		0			;warm boot
@@ -167,6 +170,7 @@ Verify:		mvi		a,0			;Use random patterns
 			sta		pattern		;Use fixed pattern
 Verify$1:	call	Calc$Blks	;Find last block address
 			call	Setup$vals
+			call	Info$Boards	;Number of boards to test
 			call	Info$Pats	;Info on test patterns
 			call	Info$Vrfy	;Inform verify only
 			call	Read$mdrive	;Read and Test MDRIVE
@@ -478,6 +482,17 @@ Info$Vrfy:	lxi		d,vrfy$msg
 			call	print
 			jmp		Disp$Block
 ;
+Info$Boards:
+			lxi		d,test$msg
+			call	print
+			call	space
+			lda		boards
+			adi		'0'			;Make ASCII
+			call	conout
+			lxi		d,HM$MSG
+			call	print
+			jmp		crlf
+;
 Info$Pats:	lxi		d,pat$msg
 			call	print
 			lda		flags
@@ -641,6 +656,119 @@ break$chk:
 			pop		b
 			ret
 ;
+;********************************************
+;	SUBROUTINE TO FIND M-DRIVE/H BOARDS		*
+;********************************************
+;
+; "Size" the M-Drive/H by counting active boards in use.
+FD$RDAT	EQU		0FFH
+findBOARDS:
+		LXI		H,-((512-4)/2)	;Init the disk size (blocks 2K)
+		LXI		B,00F8h		;"B" = 0, "C" = board count-1
+HMDTEST:
+		MOV		A,B
+		STA		BOARDS
+		INR		B			;Bump count for next loop
+		LXI		D,(512-4)/2	;Size of each board in 2K blocks
+		DAD		D			;Add in more blocks for new board
+		MOV		A,C			;<C> = board count by sectors
+		ADI		8			;Bump sector count by 8 (1 board)
+		MOV		C,A			;Update <C>
+		CPI		64			;See if maximum count reached
+		RZ					;Done if so
+		PUSH	H			;Save the current disk size in blocks
+		CALL	HMDTRD		;Read a sector into the buffer
+		XRA		A			;Clear command (for write)
+		CALL	HMDTWR		;Write it back out again
+		CALL	HMDTRD		;Read back, should now report no errors
+		POP		H			;Recover current disk size
+		JZ		HMDTEST		;Test for next board if no errors
+		MOV		A,C			;Board not found
+		CPI		0			;See if no boards present
+		RNZ
+; No boards found
+		LXI		D,HM$BAD	;If no boards found
+		CALL	PRINT
+		JMP		0			;Warm-Boot
+
+;
+; Routine to size the number of boards belonging to an M-Drive/H.
+
+HMDTRD:	MVI		A,FD$RDAT	;Floppy "read data" command works for M-Drive
+HMDTWR:	STA		CIOPB		;Store command for Read/Write process
+		LXI		H,BUF		;Use the buffer area for storage
+		PUSH	B			;Save sector, message value
+		MOV		A,C			;Sector to test
+		LXI		B,4			;Actual track number for parity
+		LXI		D,4*128		;"Translated" track number 4 (directory)
+		CALL	HMD$FNL		;Perform Read/Write operation
+		POP		B			;Recover sector and the ASCII board number
+		RET					;Return with parity error status
+
+; ----- For M-DRIVE/H -----
+;Entry:	D,E = Translated "Track" in range of (4-511)*128,
+;	A = "Sector" in range of 0-"8n-1", where "n" is # of M-DRIVE/H boards.
+;	B,C = Actual track
+;
+;  Rearranged so that "sector" info is actually the high order address byte -
+; "D" becomes the low order track address byte, and since "D" may hold
+; only a "1" or "0" in it's MSB, use it to identify the "high or low"
+; sector being addressed by rotating that bit to the high order position.
+;
+HMD$FNL:
+		PUSH	B			;Save "track" for parity
+		PUSH	PSW
+		OUT		HADDR		;Set "sector" for parity¬ high "track" byte
+		MOV		A,D
+		OUT		HADDR		;Low order byte of "track"
+		MOV		A,E
+		OUT		HADDR		;Set "record" 1 or 0 ID in final byte setup
+		LXI		B,8080H
+		LDA		CIOPB		;See if read operation requested
+		CPI		FD$RDAT
+		JNZ		HMD$WRT		;Do write if not
+HMD$RD:
+		IN		HDATA		;Get data byte from "drive"
+		MOV		M,A
+		INX		H			;In memory, point to next location
+		ADD		B
+		MOV		B,A			;Accumulate parity byte
+		DCR		C			;Until all 128 bytes done
+		JNZ		HMD$RD		;If done, point to stored disk parity byte
+		POP		PSW
+		OUT		HADDR		;Set High order byte of track
+		POP		D
+		MOV		A,D
+		OUT		HADDR		;Set Low order byte of track (single bit)
+		MOV		A,E
+		OUT		HADDR		;Use old byte of "track" to find single byte
+		IN		HDATA
+		SUB		B			;Get it and see if parity matches
+		RET					;Return with error status
+;
+; Write operation to MDRIVE/H.
+HMD$WRT:
+		MOV		A,M
+		INX		H			;Get byte from memory, point to next
+		OUT		HDATA		;Xmit to "drive"
+		ADD		B
+		MOV		B,A			;Accumulate parity byte
+		DCR		C			;Until 128 bytes done
+		JNZ		HMD$WRT		;If done, point to storage for parity byte
+		POP		PSW
+		OUT		HADDR		;Set High order byte of track
+		POP		D			;Recover selected track
+		MOV		A,D
+		OUT		HADDR		;Set Low order byte of track (single bit)
+		MOV		A,E
+		OUT		HADDR
+		MOV		A,B
+		OUT		HDATA		;Save it to memory "drive" reserved area
+		XRA		A
+		RET					;Show valid write operation
+HM$MSG:	DB	' M-Drive/H$'	;Show active M-DRIVE/H boards
+HM$BAD:	db	'NO M-DRIVE/H BOARDS FOUND$'
+;
 bad$msg:	db	'Bad command line$'
 pass$msg:	db	'Pass: $'
 blkb$msg:	db	'block: 000000-$'
@@ -662,11 +790,13 @@ pattern:	db		0h
 random$num:	dw		0h
 seed:		dw		5A5Ah		;Init random number
 pass:		dw		0			;Number of passes
-boards:		db		1			;Number of M-DRIVE/H boards
+boards:		ds		1			;Number of M-DRIVE/H boards
 block$size:	ds		2
 oflag:		ds		1
+CIOPB:		ds		1
 Address:	ds		3
 			ds		40
 stack:		equ		$
+BUF:		equ		$
 
 		end
