@@ -1,4 +1,4 @@
-; PROGRAM NAME:	BOOT0.ASM
+; PROGRAM NAME:	BOOT3.ASM
 ;
 ;	Boot: 0	Attempt to boot 8" drive 0, if not ready attempt to boot from DISK3.
 ;	Boot: 1	Always boot from DISK3.
@@ -19,9 +19,9 @@
 ;
 ; EQUATED CONSTANTS:
 ;
-ENTRY	EQU	100h			;Org address (= 0, for ROM)
+ENTRY	EQU	0;100h			;Org address (= 0, for ROM)
 HIRAM	EQU	8000h			;RAM offset of ROM so loader doesn't overlay 2nd page
-RBOOT	SET	ENTRY+ROM+HIRAM	;end of PROM in RAM
+RBOOT	EQU	512				;Size of boot ROM in RAM
 XBOOT	EQU	100h			;Base Location of second phase loader in RAM
 MAP		EQU	XBOOT+400h		;allocation map address for bad DISK3 sectors
 
@@ -74,7 +74,7 @@ INIT:
 	MVI		A,0FFh			;Turn on the disk motors, leave PROM active
 	OUT		FDPORT+FDON
 ;
-; Loop on total error to this point.
+; Wait for drives to come up to speed.
 	LXI		B,4000h			;Init delay count
 WAIT	EQU $-ENTRY
 	XTHL
@@ -84,8 +84,8 @@ WAIT	EQU $-ENTRY
 	ORA 	C				;Bump count, test if done
 	JNZ		WAIT			;Loop until the time passes
 ; read ROM and write to RAM
-	LXI		H,RBOOT-HIRAM-ENTRY	;point to end of ROM
-	LXI		D,RBOOT-ENTRY		;point to end of RAM
+	LXI		H,RBOOT			;point to end of ROM
+	LXI		D,HIRAM+RBOOT	;point to end of RAM
 ROMOVE	EQU	$-ENTRY
 	MOV		A,M				;read ROM byte
 	STAX	D				;write to RAM
@@ -114,7 +114,7 @@ ROMOVE	EQU	$-ENTRY
 ;
 ; Delay subroutine
 DELAY	EQU	$+HIRAM-ENTRY	; delay subroutine
-	LXI		B,0C000h		;Init delay count
+	LXI		B,08000h		;Init delay count
 DELAY0	EQU	$+HIRAM-ENTRY
 	XTHL
 	XTHL					;Let command settle
@@ -128,9 +128,14 @@ DELAY0	EQU	$+HIRAM-ENTRY
 START	EQU	$+HIRAM-ENTRY
 	MVI		A,0FEh			;disable ROM, enable RAM
 	OUT		FDPORT+FDON
+	MVI		A,028H			;Drive select 5.25"
+	OUT		FDPORT+FDCS		;Send to controller
+	CALL	DELAY			;Switch settle time
+;
 ; Load Specify Command.
 	LXI		D,SPEC			;Point to specify command sequence
 	MVI		B,LSPEC			;Length in "B"
+
 SPEC1	EQU	$+HIRAM-ENTRY
 	IN		FDPORT+FDCS		;See if ready to accept next byte
 	ORA		A
@@ -169,16 +174,18 @@ RCAL3	EQU	$+HIRAM-ENTRY
 	IN		FDPORT+FDCD		;Get first resulting "Status Byte"
 	XRI		20h				;Flip "drive ready" status bit
 	MOV		C,A				;Put result in "C"
+;
 RCAL4	EQU	$+HIRAM-ENTRY
 	IN		FDPORT+FDCS		;Get command execution status again
 	ORA		A
 	JP		RCAL4			;See if seek complete
 	IN		FDPORT+FDCD		;Get second "execution" result byte
 	ORA		C				;Combine the two result status bytes
+	ANI		0FCH
 	JNZ		D3BOOT			;Loop to DISK3 boot if error
 ;
 ; Execute read operation sequence until loaded successfully.
-	MVI		B,LDATA			;Length of data
+	MVI		B,LDATA			;Length of DMA data
 ;
 ; Output beginning DMA address.
 ADDR	EQU	$+HIRAM-ENTRY
@@ -211,6 +218,7 @@ READ3	EQU	$+HIRAM-ENTRY
 	JP		READ3			;Wait if not
 	IN		FDPORT+FDCD		;Get resulting status of read operation
 	SUI		40h				;Remove "abnormal ending" status bit
+	ani		0FCH			;Mask bits
 	MOV		H,A				;Put result in "H"
 READ4	EQU	$+HIRAM-ENTRY
 	IN		FDPORT+FDCS		;Get second status byte
@@ -237,8 +245,18 @@ D3BOOT	EQU	$+HIRAM-ENTRY
 	MVI		A,1				;DISK3 board reset byte
 	OUT		D3PORT			;send it
 	XRA		A				;ATTENTION byte
+	STA		IOPB1S			;Clear STATUS
 	OUT		D3PORT			;send it
-	CALL	DELAY			; turn off disk drive light
+	CALL	DELAY			;Give time to process
+;
+	LDA 	IOPB1S			;get STATUS
+	ORA		A				;check if DISK3 present
+	JM		DOHBT			;successful no-op, continue with hard boot
+;
+	XRA		A				;<A>=0
+	STA		IOPB1S			;Clear STATUS
+	OUT		D3PORT			;nudge DISK3
+	CALL	DELAY			;Give time to process
 	LDA 	IOPB1S			;get STATUS
 	ORA		A				;check if DISK3 present
 	JM		DOHBT			;successful no-op, continue with hard boot
@@ -246,7 +264,8 @@ D3BOOT	EQU	$+HIRAM-ENTRY
 ;
 ; execute DISK3 command subroutine
 EXECUT	EQU	$+HIRAM-ENTRY
-	XRA		A				;null byte
+	XRA		A				;<A>=0
+	STAX	D				;clear STATUS
 	OUT		D3PORT			;nudge DISK3
 XX1	EQU	$+HIRAM-ENTRY
 	LDAX	D				;get STATUS
@@ -311,7 +330,7 @@ BOOTVEC	EQU	$+HIRAM-ENTRY
 	MOV		C,A				;Boot switch value passed to loader
 	JMP		XBOOT			;second phase loader
 ;	org	XBOOT				;Cold boot code starts in RAM here
-	DB	'RR1'
+	db	'RR4'
 ;
 ;************************************************
 ;*	FIXED STORAGE FOR DISK PARAMETERS	*
@@ -320,13 +339,13 @@ BOOTVEC	EQU	$+HIRAM-ENTRY
 ;
 SPEC	EQU	$+HIRAM-ENTRY
 	DB	FD$SPEC				;Floppy disk specification command
-	DB	0DFh
-	DB	HDLT SHL 1
+	db	0DFH
+	db	01EH
 LSPEC	EQU	HIRAM+$-ENTRY-SPEC	;Length of specification sequence
 ;
 RECAL	EQU	$+HIRAM-ENTRY
 	DB	FD$RECA				;Recalibrate command (home to track 0)
-	DB	0
+	db	002H				;Drive 2
 LRECAL	EQU	HIRAM+$-ENTRY-RECAL	;Command length
 ;
 ; Function data for controller to boot
@@ -350,8 +369,7 @@ READ	EQU	$+HIRAM-ENTRY
 LREAD	EQU	HIRAM+$-ENTRY-READ	;Length of parameter block to xmit
 ;
 COMP	EQU	$+HIRAM-ENTRY
-	DB	'Comp'
-;
+	db	'Comp'
 IOPB1	equ	$+HIRAM-ENTRY
 	db	D3NOP				;DISK3 present check
 IOPB1S	equ	$+HIRAM-ENTRY

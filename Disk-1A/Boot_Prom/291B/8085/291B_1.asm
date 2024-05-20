@@ -19,9 +19,9 @@
 ;
 ; EQUATED CONSTANTS:
 ;
-ENTRY	EQU	100h			;Org address (= 0, for ROM)
+ENTRY	EQU	0;100h			;Org address (= 0, for ROM)
 HIRAM	EQU	8000h			;RAM offset of ROM so loader doesn't overlay 2nd page
-RBOOT	SET	ENTRY+ROM+HIRAM	;end of PROM in RAM
+RBOOT	EQU	512				;Size of boot ROM in RAM
 XBOOT	EQU	100h			;Base Location of second phase loader in RAM
 MAP		EQU	XBOOT+400h		;allocation map address for bad DISK3 sectors
 
@@ -70,6 +70,8 @@ D3RWCMD	EQU	8				; DISK3 read/write command
 	nop
 	nop
 	lxi		sp,HIRAM
+;
+; Wait for drives to come up to speed.
 	lxi		b,04000H		;Init delay count
 WAIT	equ	$-ENTRY
 	xthl					;Harmless time comsuming instructions
@@ -80,8 +82,8 @@ WAIT	equ	$-ENTRY
 	jnz		WAIT			;Loop until time passes
 ;
 ; Read ROM and write to RAM
-	lxi		h,RBOOT-HIRAM-ENTRY	;Point to end of ROM
-	lxi		d,RBOOT-ENTRY		;Point to end of RAM
+	lxi		h,RBOOT			;Point to end of ROM
+	lxi		d,HIRAM+RBOOT	;Point to end of RAM
 ROMOVE	equ	$-ENTRY
 	mov		a,m				;Read ROM byte
 	stax	d				;Write to RAM
@@ -210,7 +212,7 @@ TEST	equ	$+HIRAM-ENTRY
 ;************************************************
 ;*	FIXED STORAGE FOR DISK PARAMETERS	*
 ;************************************************
-	ORG	($ and 0FFF0h) + 16	;Next Segment boundary
+;	ORG	($ and 0FFF0h) + 16	;Next Segment boundary
 ;
 COMP	equ	$+HIRAM-ENTRY
 	db	'Comp'
