@@ -15,3 +15,6 @@ MFORM.COM     -  Binary
 
 MTEST.ASM     -  Memory test program
 MTEST.COM     -  Binary
+
+SIZER.ASM     -  Size report program
+SIZER.COM     -  Binary

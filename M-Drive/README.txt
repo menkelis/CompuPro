@@ -46,6 +46,24 @@ Example:	Format drive 'M'
 
 ------------------------------
 
+SIZER
+
+Report number of M-DRIVE/H found and size of disk.
+
+Example display.
+8 M-Drive/H
+Sectors/track			:64 (40 hex)
+Sectors/block			:16 (10 hex)
+Block size				:2K bytes
+Disk size				:2000K bytes
+Extents/entry			:2
+Number of blocks		:1008 (03F0 hex)
+Max directory entries	:512 (0200 hex)
+Directory blocks		:8 (11111111)
+Track offset			:4
+
+------------------------------
+
 MTEST [-P -Q] [ -B[num] -F[pat] | -R | -V[pat] ]
 
 -F=Fixed pattern. Default pattern is random unless [pat]
