@@ -37,8 +37,6 @@ FCB2FN	equ	FCB2+1		;location of file name
 ; Misc equates
 
 MODOFF	equ	0600h		;offset of module base in the image file
-MDRIVEL	equ	0400h		;length of MDRIVE module
-
 CR	equ	13				;ascii for carriage return
 LF	equ	10				;ascii for line feed
 
@@ -53,10 +51,11 @@ LF	equ	10				;ascii for line feed
 
 	lxi		sp,stack	;setup local stack
 
-	call	clrRam		;Clear unused memory
-	call	chkParm		;check input parameters
+	call	clrRam		;Clear module memory
+
+	call	rdMdrive	;read L-MDRIVE code into the image
 	call	rdFiles		;read the two image files into memory
-	call	rdMdrive	;move MDRIVE code into the image
+
 	call	mkBmap		;make the bitmap
 	call	setParm		;Set relocation parameters
 	call	dspData		;display the data we've collected
@@ -66,11 +65,11 @@ LF	equ	10				;ascii for line feed
 	jmp		exitMsg
 
 ;-----------------------------------------------------------------------------
-; clrRam - Clear unused memory
+; clrRam - Clear module memory
 ;-----------------------------------------------------------------------------
 clrRam:
-	lxi		h,img0
-	lxi		b,img2-img0
+	lxi		h,MDRIVE
+	lxi		b,EOM
 clrRamlp
 	mov		a,b
 	ora		c
@@ -81,43 +80,20 @@ clrRamlp
 	jmp		clrRamlp
 
 ;-----------------------------------------------------------------------------
-; chkParm - Verify the file name parameters are supplied. If not, display
-;    help banner and exit. Otherwise, save the 2nd file name supplied in
-;    fcbSave.
-;-----------------------------------------------------------------------------
-chkParm:
-	lxi		d,mHelp		;DE->help message
-
-	lda		FCBFN		;look at 1st character of 1st file name
-	cpi		' '			;anything there?
-	jz		exitMsg		;no, exit with message from DE
-
-	lda		FCB2FN		;look at 1st character of 2nd file name
-	cpi		' '			;anything there?
-	jz		exitMsg		;no, exit with message from DE
-
-	lxi		h,FCB2		;HL->source FCB (2nd file name)
-	lxi		d,fcbSave	;DE->destination (FCB save area)
-	jmp		movFcb		;save 2nd FCB and exit
-
-;-----------------------------------------------------------------------------
 ; rdFiles - Read the two image files into memory and verify they are the
 ;     same length. Save the length in imgLen.
 ;-----------------------------------------------------------------------------
 rdFiles:
-	lxi		h,img1		;HL->where to read image file
+	lxi		h,img0		;HL->where to read image ORG 000 file
 	call	readImg		;read image from file #1
 	shld	imgLen		;save length read
 
-	lxi		h,fcbSave	;HL->source FCB (2nd file name)
-	lxi		d,FCB		;DE->destination (default FCB)
-	call	movFcb		;put 2nd file name into default FCB
-
-	lxi		h,img2		;HL->where to read image file
+	lxi		h,img1		;HL->where to read image ORG 100 file
+	mvi		a,'1'
+	sta		dskFcb+6
 	call	readImg		;read image 2 from file #2
 	
 	lxi		d,mLenErr	;DE->length error message
-	
 	lda		imgLen+1	;compare length MSBs
 	cmp		h
 	jnz		exitMsg		;exit with length error message
@@ -130,93 +106,77 @@ rdFiles:
 	ret
 
 ;-----------------------------------------------------------------------------
-; readImg - Read image file in FCB into RAM pointed to by HL. Number
-;     of bytes read returned in HL.
-;----------------------------------------------------------------------------
-rdMdrive:
-	lxi		h,ldrFcb	;HL->FCB for L-MDRIVE.COM
-	lxi		d,FCB		;DE->destination (default FCB)
-	call	movFcb		;put output file name into default FCB
-	lxi		h,img0		;HL->where to read image file
-	call	readImg		;read image from file #1
-						;Return HL=length
-	shld	ldrLen
-	ret
-
-;-----------------------------------------------------------------------------
-; readImg - Read image file in FCB into RAM pointed to by HL. Number
-;     of bytes read returned in HL.
+; readImg - Read image file in FCB (DE) into RAM pointed to by HL.
+;     Number of bytes read returned in HL.
 ;----------------------------------------------------------------------------
 readImg:
 	push	h			;save starting address on stack
-
 	lxi		d,-80h		;pre-decrement address by one sector
 	dad		d			;HL->image-80h
 	push	h			;save on stack
-	
-; Insert .COM extension if not supplied. If just memory sizes entered
-;    as parameters, create the default 'MDISKxx' file name.
 
-	lxi		h,FCBEXT	;HL->file extension in FCB
-	mvi		a,' '		;compare to space to see if ext present
-	cmp		m
-	jnz		haveExt		;yes, extension is present
-
-	mvi		m,'C'		;else, insert 'COM' as extension
-	inx		h
-	mvi		m,'O'
-	inx		h
-	mvi		m,'M'
-
-haveExt:
-	lda		FCBFN		;A=first character of file name
-	sui		'0'			;see if a digit 0-5
-	cpi		5
-	jnc		haveFn		;no, a file name must already be there
-
-	lhld	FCBFN		;move xx memory size to 6,7 in file name
-	shld	FCBFN+5
-	
-	lxi		h,'MD'		;put 'MDISK' in 0-5 of file name
-	shld	FCBFN+0
-	lxi		h,'IS'
-	shld	FCBFN+2
-	mvi		a,'K'
-	sta		FCBFN+4
-
-; Read the file image into memory
-
-haveFn:
 	xra		a			;zero current record in FCB
-	sta		FCBCR
-
-	lxi		d,FCB		;DE->file control block
+	sta		dskFCB+32
+	lxi		d,dskFcb	;DE->file control block
 	mvi		c,OPENF		;C=open file command
 	call	BDOS		;open the image file
-	
 	lxi		d,mNoFile	;DE->file not found message
 	inr		a			;test for FFh error
 	jz		exitMsg		;file not found, exit
-
 rdLoop:
 	pop		h			;HL->last address read
 	lxi		d,80h		;increment by one sector
 	dad		d			;HL->next sector
 	push	h			;save on stack
-	
 	xchg				;DE=buffer address
 	mvi		c,SETDMA	;C=set buffer address command
 	call	BDOS
-
-	lxi		d,FCB		;DE->file control block
+	lxi		d,dskFCB	;DE->file control block
 	mvi		c,READF		;C=read file sequential
 	call	BDOS		;read the file
 	ora		a			;end of file?
 	jz		rdLoop		;no, read more
-
 	pop		h			;HL->end of last sector read + 1
 	pop		d			;DE->start of image file
-	jmp		hlSubDe		;HL=end-start = length read, exit
+	call	hlSubDe		;HL=end-start = length read
+	ret					;exit
+
+;-----------------------------------------------------------------------------
+; rdMdrive - Read installer L-MDRIVE.COM into RAM.
+;     Number of bytes read returned in HL.
+;----------------------------------------------------------------------------
+rdMdrive:
+	xra		a			;zero current record in FCB
+	sta		ldrFCB+32
+	lxi		d,ldrFCB	;DE->FCB for L-MDRIVE.COM
+	mvi		c,OPENF		;C=open file command
+	call	BDOS		;open the image file
+	inr		a			;test for FFh error
+	lxi		d,IntErr
+	jz		exitMsg		;Internal Error if file not found, exit
+	lxi		h,MDRIVE	;HL->where to read image file
+	push	h			;save starting address on stack
+	lxi		d,-80h		;pre-decrement address by one sector
+	dad		d			;HL->HL-80h
+	push	h			;save on stack
+rdMLoop
+	pop		h			;HL->last address read
+	lxi		d,80h		;increment by one sector
+	dad		d			;HL->next sector
+	push	h			;save on stack
+	xchg				;DE=buffer address
+	mvi		c,SETDMA	;C=set buffer address command
+	call	BDOS
+	lxi		d,ldrFCB	;DE->file control block
+	mvi		c,READF		;C=read file sequential
+	call	BDOS		;read the file
+	ora		a			;end of file?
+	jz		rdMLoop		;no, read more
+	pop		h			;HL->end of last sector read + 1
+	pop		d			;DE->start of image file
+	call	hlSubDe		;HL=end-start = length read, exit
+	shld	ldrLen
+	ret
 
 ;-----------------------------------------------------------------------------
 ; mkBmap - Make relocation bitmap and put at the end of image 1. The
@@ -227,7 +187,7 @@ mkBmap:
 	xra		a			;initialize 1st bitmap byte
 	sta		bmByte
 
-	lxi		d,img1		;DE->start of image 1
+	lxi		d,img0		;DE->start of image ORG 000
 	lhld	modLen		;HL=length of module: MDISK
 	mov		b,h			;BC=length of module
 	mov		c,l
@@ -235,7 +195,7 @@ mkBmap:
 	shld	bmapPtr		;save as the bitmap pointer
 	shld	bmapBeg		;save as start of bitmap in image
 
-	lxi		h,img2		;HL->start of image 2
+	lxi		h,img1		;HL->start of image ORG 100
 
 ; mbLoop - Loop through all bytes of the module and create bitmap
 
@@ -283,12 +243,12 @@ mbNext:
 ;     then we're assured to cross zero when the last sector is written.
 
 	lhld	bmapPtr		;HL->end of image
-	shld	bmapEnd
-	lxi		d,img1		;DE->start of image
+	shld	bmapEnd		;Base of bitmap
+	lxi		d,img0		;DE->start of image ORG 000
 	call	hlSubDe		;Compute end-start in HL
 
 ; Caclulate total image size to write
-	lxi		d,MDRIVEL	;DE=loader reserved space
+	lxi		d,EOL		;DE=loader reserved space
 	dad		d			;HL=loader+module+bitmap
 
 ; Round up to next boundary
@@ -323,18 +283,28 @@ setParm:
 ;-----------------------------------------------------------------------------
 dspData:
 
-; MDRIVE Module size
-
+; L-MDRIVE Module size
 	lhld	ldrLen		;HL=data to display
 	lxi		d,dLdrSz	;DE->where to put ascii result
 	lxi		b,mLdrSz	;BC->message to display
 	call	dataMsg		;display message with data
 
-; MDISK Module size
+; Location of MDISK000 module in G-MDRIVE
+	lxi		h,img0		;HL=data to display
+	lxi		d,dModAt	;DE->where to put ascii result
+	lxi		b,mModAt	;BC->message to display
+	call	dataMsg		;display message with data
 
+; Module MDISK000 size
 	lhld	modLen		;HL=data to display
 	lxi		d,dModSz	;DE->where to put ascii result
 	lxi		b,mModSz	;BC->message to display
+	call	dataMsg		;display message with data
+
+; Location BITMAP in G-MDRIVE
+	lhld	bmapBeg		;HL=pointer to bitmap
+	lxi		d,dMapAt	;DE->where to put ascii result
+	lxi		b,mMapAt	;BC->message to display
 	call	dataMsg		;display message with data
 
 ; Size of bitmap
@@ -343,16 +313,38 @@ dspData:
 	lhld	bmapEnd		;pointer to bitmap end
 	call	hlSubDe		;Compute end-start in HL
 	lxi		d,dMapSz	;DE->where to put ascii result
-	lxi		b,mMapSz	;;BC->message to display
+	lxi		b,mMapSz	;BC->message to display
 	call	dataMsg		;display message with data
 
-; Final image size
+; Final image size MDRIVE.COM (L-MDRIVE + MDISK000 + BITMAP)
 
 	lhld	imgLen		;HL=data to display
 	inx		h			;restore actual value
 	lxi		d,dImgSz	;DE->where to put ascii result
 	lxi		b,mImgSz	;BC->message to display
-	jmp		dataMsg		;display message with data and exit
+	call	dataMsg		;display message with data and exit
+
+; Passed VARS
+; Show RELBASE (Offset to bitmap in MDRIVE.COM)
+	lhld	RELBAS		;HL=Offset to bitmap in MDRIVE
+	lxi		d,dRelba	;DE->where to put ascii result
+	lxi		b,mRelba	;BC->message to display
+	call	dataMsg		;display message with data
+; Show MDSIZE
+	lhld	MDSIZE		;HL=Offset to bitmap in MDRIVE
+	lxi		d,dMDsiz	;DE->where to put ascii result
+	lxi		b,mMDsiz	;BC->message to display
+	call	dataMsg		;display message with data
+
+; Show location of MDISK000 in MDRIVE.COM
+	lxi		h,EOL 		;HL=Offset to image in MDRIVE.COM
+	lxi		d,100h
+	dad		d
+	lxi		d,dImg0		;DE->where to put ascii result
+	lxi		b,mImg0		;BC->message to display
+	call	dataMsg		;display message with data
+
+	ret
 
 ;-----------------------------------------------------------------------------
 ; dataMsg - Display a data message given:
@@ -413,59 +405,44 @@ lsnDone:
 	ret
 
 ;-----------------------------------------------------------------------------
-; wrtImg - Write the final image to BMOVCPM.COM
+; wrtImg - Write the final image to MDRIVE.COM
 ;----------------------------------------------------------------------------
 wrtImg:
-	lxi		h,outFcb	;HL->FCB for MDRIVE.COM
-	lxi		d,FCB		;DE->destination (default FCB)
-	call	movFcb		;put output file name into default FCB
-
-	lxi		d,FCB		;DE->output file FCB
+	lxi		d,outFCB	;DE->output file FCB
 	mvi		c,DELETEF	;C=delete file command
 	call	BDOS		;delete MDRIVE.COM
-
-	lxi		d,FCB		;DE->output file FCB
+	lxi		d,outFCB	;DE->output file FCB
 	mvi		c,MAKEF		;C=make file command
 	call	BDOS		;create the file
-	
 	lxi		d,mMakErr	;DE->can't create file error message
 	inr		a			;test for FF (make file fail)
 	jz		exitMsg		;create file failed, exit
-
 	xra		a			;zero current record
-	sta		FCBCR
-
-	lxi		h,img0		;HL->image to write to disk
-
+	sta		outFCB+32
+	lxi		h,MDRIVE	;HL->image to write to disk
 wrLoop:
 	push	h			;save pointer on stack
 	xchg				;DE=buffer address
 	mvi		c,SETDMA	;C=set buffer address command
 	call	BDOS
-
-	lxi		d,FCB		;DE->file control block
+	lxi		d,outFCB	;DE->file control block
 	mvi		c,WRITEF	;C=write file sequential
 	call	BDOS
-
 	lxi		d,mWrtErr	;DE->write error message
 	ora		a			;test for write error
 	jnz		exitMsg		;write failed, exit
-
 	lhld	imgLen		;decrement bytes left to write
 	lxi		d,-80h
 	dad		d
 	shld	imgLen		;save the bytes remaining
 	jnc		wrExit		;all done, exit
-
 	pop		h			;restore HL
 	lxi		d,80h		;increment by 80h bytes
 	dad		d
 	jmp		wrLoop	
-
 wrExit:
 	pop		h			;restore stack
-
-	lxi		d,FCB		;DE->output file FCB
+	lxi		d,outFCB	;DE->output file FCB
 	mvi		c,CLOSEF	;C=close file command
 	jmp		BDOS		;do close and exit	
 
@@ -524,49 +501,76 @@ mHelp:	equ	$		;banner/help display
  db LF
  db 'Creates the program MDRIVE.COM',CR,LF
  db LF
- db 'Usage: G-MDRIVE param1 param2',CR,LF
- db '  Where param1 & param2 = [filename]XX[.ext]',CR,LF
- db LF
- db 'param1 and param2 identify two MDISK.COM image files',CR,LF
- db 'of two different memory sizes',CR,LF
- db LF
- db 'Examples:',CR,LF
- db '  G-MDRIVE MDISK000.COM MDISK100.COM',CR,LF
- db '  G-MDRIVE MDISK0 MDISK1  (assumes .COM extension)',CR,LF
- db '  G-MDRIVE 000 100        (assumes filename like MDISKxx.COM)',CR,LF,'$' 
+ db 'Usage: G-MDRIVE',CR,LF,'$' 
 
 mLdrSz	db	'MDRIVE module size: '
 dLdrSz	db	'xxxxh',CR,LF,'$'
 
-mModBg	db	'MDISK  module start: '
-dModBg	db	'xxxxh',CR,LF,'$'
-
+mModAt	db	'MDISK  at: '
+dModAt	db	'xxxxh',CR,LF,'$'
 mModSz	db	'MDISK  module size: '
 dModSz	db	'xxxxh',CR,LF,'$'
 
+mMapAt	db	'BITMAP at: '
+dMapAt	db	'xxxxh',CR,LF,'$'
 mMapSz	db	'BITMAP size: '
 dMapSz	db	'xxxxh',CR,LF,'$'
-
 mImgSz	db	'Final image size: '
-dImgSz	db	'xxxxh',CR,LF,'$'
+dImgSz	db	'xxxxh',CR,LF,LF
+		db	'MDRIVE.COM',CR,LF,'$'
+; Passed VARS
+mRelba	db	'RELBAS '
+dRelba	db	'xxxxh',CR,LF,'$'
+mMDsiz	db	'MDSIZE '
+dMDsiz	db	'xxxxh',CR,LF,'$'
+mImg0	db	'MDISK000 at '
+dImg0	db	'xxxxh',CR,LF,'$'
 
 mDone	db	LF,'MDRIVE.COM Created',CR,LF,'$'
 
 mLenErr	db	CR,LF,'File sizes do not match',CR,LF,'$'
-mNoFile	db	CR,LF,'File not found',CR,LF,'$'
+mNoFile	db	CR,LF,'File MDISKXXX.COM not found',CR,LF,'$'
 mRdErr	db	CR,LF,'File read error',CR,LF,'$'
 mNotDif	db	CR,LF,'The two files are the same MDISK memory size',CR,LF,'$'
 mMakErr	db	CR,LF,'Can''t create output file',CR,LF,'$'
 mWrtErr	db	CR,LF,'File write error, disk full?',CR,LF,'$'
+IntErr	db	CR,LF,'Internal error',CR,LF,'$'
 
 ;-----------------------------------------------------------------------------
 ;  Data Area
 ;-----------------------------------------------------------------------------
-outFcb	db	0,'MDRIVE  COM',0,0,0,0		;output FCB
-ldrFcb	db	0,'L-MDRIVECOM',0,0,0,0		;loader FCB
+; output FCB
+outFcb	db	0							;+0 User#/Drive
+		db	'MDRIVE  COM'				;+1 filename
+		db	0							;+12 Extent
+		db	0,0							;+13 Reserved
+		db	0							;15 Records Used
+		ds	15							;Allocation Blocks
+		db	0							;CR
+		db	0,0,0						;RR
+
+; loader FCB
+ldrFcb	db	0							;User#/Drive
+		db	'L-MDRIVECOM'				;filename
+		db	0							;+12 Extent
+		db	0,0							;+13 Reserved
+		db	0							;15 Records Used
+		ds	15							;Allocation Blocks
+		db	0							;CR
+		db	0,0,0						;RR
+
+; MDISK FCB
+dskFcb	db	0							;User#/Drive
+		db	'MDISK000COM'				;filename
+		db	0							;+12 Extent
+		db	0,0							;+13 Reserved
+		db	0							;15 Records Used
+		ds	15							;Allocation Blocks
+		db	0							;CR
+		db	0,0,0						;RR
 
 saveStk	ds	2			;save area for CP/M stack pointer 
-fcbSave	ds	16			;save area for FCB prepared by the CCP
+
 bmapPtr	ds	2			;pointer to current bitmap location
 bmapBeg	ds	2			;pointer to start of bitmap
 bmapEnd	ds	2			;pointer to end of bitmap
@@ -583,16 +587,19 @@ stack	equ	$
 ;-----------------------------------------------------------------------------
 		org	($+255) AND 0FF00h	;force page boundary
 ;-----------------------------------------------------------------------------
-; The image files read from disk are saved here in img1 and img2.
-;    1K is reserved for each image. Images are on a page boundary
+; The installer program is read into MDRIVE and can be up to 2K.
 ;-----------------------------------------------------------------------------
-img0		equ	$
-MDRIVE:		ds	MDRIVEL			;parameters are in last page
+MDRIVE		equ	$				;parameters are in last page
+			ds	800h			;LOADER: UP TO 2K
 RELBAS:		equ	MDRIVE+3		;RELOCATION BASE
 MDSIZE:		equ	RELBAS+2		;SIZE OF MODULE
-
+EOL			equ	$-MDRIVE
+;-----------------------------------------------------------------------------
+; The image files (MDISK000,MDISK100) read from disk are saved here in
+; img0 and img1. 1K is reserved for each image.
+;-----------------------------------------------------------------------------
 		org	($+255) AND 0FF00h	;force page boundary
-img1		equ	$
-img2		equ	img1+1000h		;leaves 4K for 1st image
-
+img0		equ	$				;Base of ORG 000 module (1K).
+img1		equ	img0+400h		;Base of ORG 100 module (1K).
+EOM			equ	($-MDRIVE)+800h	;End of modules
 	end

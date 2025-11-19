@@ -27,6 +27,7 @@
 mdriveh		equ		80h		;Flag M-Drive/H
 warm$boot	equ		0000h
 bdos		equ		0005h
+fcb			equ		005ch	;DEFAULT FCB LOCATION
 DMABUF		equ		0080h
 STACK		equ		800H
 HM$DATA		EQU		0C6H
@@ -41,6 +42,11 @@ main:	equ		$
 RELBAS:		DS		2		;RELOCATION BASE
 MDSIZE:		DS		2		;SIZE OF MDISK DRIVER
 past:	lxi		sp,stack
+		lda		fcb+1		;BLANK IF NO COMMAND LINE
+		cpi		' '
+		jz		givehelp	;Give help message if blank
+		cpi		'?'
+		jz		report
 		call	findBIOS	;Get address of BIOS vectors
 		call	getargs		;Process command line
 		call	validate	;Validate parameters
@@ -52,6 +58,18 @@ past:	lxi		sp,stack
 		call	setdpb		;Set DPB
 		call	movmem		;Copy driver to run location
 		call	setvec		;Set BIOS to use driver
+		lxi		d,HM$MSG
+		jmp		BAIL		;Print number of boards found
+
+; No command line args, give help
+givehelp:
+		lxi		d,help$msg
+		jmp		BAIL
+
+; Just report number of M-DRIVE boards found
+; This will trash the DMABUF, set internal DPB.
+report:
+		call	findBOARDS	;Get number of M-DRIVE boards
 		lxi		d,HM$MSG
 		jmp		BAIL		;Print number of boards found
 ;
@@ -403,36 +421,6 @@ setjmp:	mvi		a,jmp		;JMP
 		ret
 
 ;
-;********************************************
-;	SUBROUTINE TO CR LF						*
-;********************************************
-crlf:	mvi		a,0Dh
-		call	conout
-		mvi		a,0Ah
-		jmp		conout
-;
-;********************************************
-;	SUBROUTINE TO DISPLAY HEX NUMBER		*
-;********************************************
-;
-hexoutB:call	hexout
-space:	mvi		a,' '
-		jmp		conout
-
-hexout:	push	psw
-		rar
-		rar
-		rar
-		rar
-		call	hexout1
-		pop		psw
-hexout1:ani		00FH
-		sui		00AH
-		jm		hexout2
-		adi		007H
-hexout2:adi		03AH
-		jmp		conout
-;
 ;
 ;***Subroutine*************************************
 ;Scan past spaces in line buffer, looking for the
@@ -562,22 +550,7 @@ BAIL:
 ;
 EXIT:
 		jmp		warm$boot	;BIOS: Warm Boot
-;
-;********************************************
-;	SUBROUTINE TO DISPLAY ON CONSOLE		*
-;********************************************
-conout:	push	psw
-		push	b
-		push	d
-		push	h
-		mov		e,a
-		mvi		c,2
-		call	bdos
-		pop		h
-		pop		d
-		pop		b
-		pop		psw
-		ret
+
 ;
 ; Print termenited message pointed by DE
 ;
@@ -617,6 +590,28 @@ err6:	db	'NO M-DRIVE/H BOARDS FOUND'
 
 HM$MSG:	DB		'0'
 		DB		' M-Drive/H$' ;Show active M-DRIVE/H boards
+help$msg:
+		db	0Dh,0Ah
+		db	'Usage: MDRIVE ?',0Dh,0Ah
+		db	'Report number of M-DRIVE/H boards',0Dh,0Ah,0Ah
+		db	'Usage: MDRIVE -Drive Address',0Dh,0Ah
+		db	'Drive= A - P',0Dh,0Ah
+		db	'Address=1K free space above BIOS',0Dh,0Ah
+		db	'Refer to following table:',0Dh,0Ah,0Ah
+		db	'Memory	Size 	Hex Address',0Dh,0Ah
+		db	'------	----	-----------',0Dh,0Ah
+		db	' 64K	63K		FC00',0Dh,0Ah
+		db	' 60K	59K		EC00',0Dh,0Ah
+		db	' 56K	55K		DCOO',0Dh,0Ah
+		db	' 52K	51K		CCOO',0Dh,0Ah
+		db	' 48K	47K		BC00',0Dh,0Ah
+		db	' 44K	43K		AC00',0Dh,0Ah
+		db	' 40K	39K		9C00',0Dh,0Ah
+		db	' 36K	35K		8C00',0Dh,0Ah
+		db	' 32K	31K		7C00',0Dh,0Ah
+		db	' 28K	27K		6CO0',0Dh,0Ah
+		db	' 24K	23K		3COO',0Dh,0Ah
+		db	'$'
 ;
 ; DPB for 8 boards
 SPT:	DW		0040H		;SPT
@@ -636,11 +631,12 @@ HIMEM:	DW		000h
 SIZE:	DW		0
 CIOPB:	DS		1
 MDRIVEL:	equ		$-MAIN
+; NOTE: MDRIVEL must be not be greater than 2K (800h) 
 
 ;
-; M-DRIVE/H Driver
+; M-DRIVE/H Driver module found here.
 ;
-MODULE	ORG	500H
+MODULE	ORG	800h+100h	;Offset 2K
 MDRIVE	DS		8*3
 GO$BIOS:DS		8*3
 DRIVE:	DS		2		;Drive, M-DISK/H flag
