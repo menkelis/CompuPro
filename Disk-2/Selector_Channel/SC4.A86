@@ -1,0 +1,175 @@
+; Boot EPROM
+; 2716 with 8x256 byte boot programs.
+; Boot	CPU		Console
+; ----	----	-----
+;	0	8080	Interfacer-1
+;	1	8080	Bit-Bang
+;	2	8080	System Support
+;	3	8080	Interfacer-3,4
+;	4	8088	Interfacer-1
+;	5	8088	Bit-Bang
+;	6	8088	System Support
+;	7	8088	Interfacer-3,4
+
+; Set Console Device Code
+; 0=Interfacer-1
+; 1=Bit Bang
+; 2=System Support
+; 3=Interfacer-3,4
+CONSOLE	equ	0
+
+;	CompuPro DISK 2 Equates:
+;
+D2_PORT	EQU	0C8h	;Base port address
+D2_CNTL	EQU	D2_PORT	;Control port
+D2_STAT	EQU	D2_PORT	;Status port is same as control
+D2_DATA	EQU	D2_PORT+1	;Data port (I/O)
+;
+; Disk 2 Commands:
+D2_READ	EQU	11001000b	;Read data command
+D2_WRT	EQU	11010000b	;Write data command
+D2_TIME	EQU	00000110b	;Time out
+D2_STRB	EQU	10000000b	;Drive strobe
+D2_HEAD	EQU	10010000b	;Head register
+D2_CYL	EQU	10001000b	;Cylinder register
+D2_SEC	EQU	10011000b	;Sector register
+D2_SIN	EQU	10100000b	;Step in
+D2_SOU	EQU	10000000b	;Step out
+D2_RST	EQU	00000100b	;Reset drive command bit
+D2_ATTN	EQU	10000000b	;Acknowledge end of state machine sequence (interrupt)
+;
+; Disk 2 Status Bits:
+;  ATTN	EQU	10000000b	;State machine activity bit
+D2_TOUT	EQU	01000000b	;Timeout error bit
+D2_CRC	EQU	00100000b	;CRC error on data sector bit
+D2_OVR	EQU	00010000b	;Overrun on data transfer error bit
+D2_NRDY	EQU	00001000b	;Drive not ready status bit
+D2_SEKD	EQU	00000100b	;Seek done status bit
+D2_WRTF EQU	00000010b	;Write fault (negative true status)
+D2_CYL0	EQU	00000001b	;Cylinder 0 status bit (negative true status)
+;
+; Selector Channel:
+SELCHAN	EQU	0F0h		;Selector channel port
+SELPRI	EQU	10			;Disk priority (as a DMA device, switches set)
+SELBYT	EQU	2Fh-SELPRI	;Selector channel command byte
+;
+	CSEG
+	ORG	0000H
+	ESC 1Fh,BP		;db	0DBh,0FDh
+	XOR AX,AX
+	MOV DS,AX
+L0006:
+	MOV CH,02h				;Set drive READY retry count
+L0008:
+	MOV AL,D2_STRB			;Select REG: DRIVE
+	OUT D2_CNTL,AL			;Write to control port
+	MOV AL,10H				;DRIVE=0
+	OUT D2_DATA,AL			;Write data
+	IN AL,D2_STAT			;Read status
+	AND AL,D2_ATTN+D2_NRDY	;BUSY* and NOT READY (Active low)
+	CMP AL,D2_ATTN			;BUSY* cleared?
+	JE L0033				;Yes, Check track zero
+	DEC CH					;Loop count completed?
+	JNE L0008				;No, try again
+;
+; Begin drive spin up time delay
+	MOV CX,01F4h			;Set delay
+	MOV BX,OFFSET L0006		;ROM re-entry point
+L0022:
+	MOV AL,0C0h				;Set inner loop
+L0024:
+	DEC CX					;Waste some time
+	INC CX					;Waste more time
+	DEC AL					;Inner loop completed?
+	JNE L0024				;Nope
+	DEC CX					;Count delay
+	MOV AL,CL
+	OR AL,CH				;Delay done?
+	JNE L0022				;Nope
+	JMP BX					;Jump to ROM re-entry
+;
+; Drive READY, Issue DRIVE RESET command
+L0033:
+	MOV AL,D2_RST			;Select REG: RESET
+	OUT D2_CNTL,AL			;Write to control port
+	IN AL,D2_STAT			;Read status
+	AND AL,D2_CYL0			;TRACK0 (Active low)
+	JE L004F				;Yes, At track zero
+;
+	MOV AL,D2_SOU+D2_RST	;Select REG:RESET + STEP Direction=OUT
+	OUT D2_CNTL,AL			;Write to control port
+	MOV CH,00h				;Set STEP pulse counter
+L0043:
+	IN AL,D2_DATA			;Send STEP pulse
+	DEC CH					;Count STEP pulse
+	JNE L0043				;Repeat until count=0
+; Wait for stacked STEP's to complete
+L0049:
+	IN AL,D2_STAT			;Read status
+	AND AL,D2_SEKD			;Seek Done (Active low)
+	JNE L0049				;No if status bit high
+;
+; Drive is at Track-0
+L004F:
+	MOV CH,0Ah				;Set READ data RETRY count
+;
+; Select DRIVE0,CYL=0,HEAD=0,SECTOR=0
+L0051:
+	MOV AL,D2_STRB			;Select REG: DRIVE
+	OUT D2_CNTL,AL			;Write to control port
+	MOV AL,10h				;Drive=0
+	OUT D2_DATA,AL			;Write data
+
+	MOV AL,D2_CYL			;Select REG: CYL
+	OUT D2_CNTL,AL			;Write to control port
+	XOR AL,AL				;CYL=0
+	OUT D2_DATA,AL			;Write data
+
+	MOV AL,D2_HEAD			;Select REG: HEAD
+	OUT D2_CNTL,AL			;Write to control port
+	XOR AL,AL				;HEAD=0
+	OUT D2_DATA,AL			;Write data
+
+	MOV AL,D2_SEC			;Select REG: SECTOR
+	OUT D2_CNTL,AL			;Write to control port
+	XOR AL,AL				;SECTOR=0
+	OUT D2_DATA,AL			;Write data
+;
+; Program Selector Channel
+	MOV BX,0100h			;DMA Address of 2nd loader
+	IN AL,SELCHAN			;Hold Selector Channel
+	XOR AL,AL				;Extended Address Byte: A23-A16
+	OUT SELCHAN,AL			;Write data
+	MOV AL,BH				;High Address Byte: A15-A8
+	OUT SELCHAN,AL			;Write data
+	MOV AL,BL				;Low Address Byte: A7-A0
+	OUT SELCHAN,AL			;Write data
+	MOV AL,10100101B		;Mode:1010  PRI:0101 (A5)
+	OUT SELCHAN,AL			;Write data
+;
+; Tell Disk-2 GO
+	MOV AL,D2_READ			;Command: Read Data
+	OUT D2_CNTL,AL			;Write to control port
+;
+; Wait for command compleation
+L008A:
+	IN AL,D2_STAT			;Read status
+	AND AL,D2_ATTN			;Busy* (Active low)
+	JNE L008A				;Wait for low
+; Get ERROR status
+	IN AL,D2_STAT			;Read status
+	AND AL,D2_TOUT+D2_OVR	;Check error bits: TIMEOUT and OVERRUN
+	JE L00FB				;No read errors?
+; READ Error detected
+	DEC CH					;Update retry counter
+	JNE L0051				;OK to retry?
+	JMP L0006				;No, ROM re-entry
+;
+; Set CONSOLE port flag, Start 2nd loader.
+	ORG	00FBh
+L00FB:
+	MOV CL,Console			;Console device
+	db	0A2h,00h,00h		;MOV BYTE PTR [0000h],AL
+;
+; Fall into 2nd loader
+	END

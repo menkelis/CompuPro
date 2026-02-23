@@ -1,0 +1,190 @@
+CP/M ASM86 1.1  SOURCE: SC4.A86                                                                              PAGE   1
+
+
+                        ; Boot EPROM
+                        ; 2716 with 8x256 byte boot programs.
+                        ; Boot  CPU             Console
+                        ; ----  ----    -----
+                        ;       0       8080    Interfacer-1
+                        ;       1       8080    Bit-Bang
+                        ;       2       8080    System Support
+                        ;       3       8080    Interfacer-3,4
+                        ;       4       8088    Interfacer-1
+                        ;       5       8088    Bit-Bang
+                        ;       6       8088    System Support
+                        ;       7       8088    Interfacer-3,4
+
+                        ; Set Console Device Code
+                        ; 0=Interfacer-1
+                        ; 1=Bit Bang
+                        ; 2=System Support
+                        ; 3=Interfacer-3,4
+   0000                 CONSOLE equ     0
+
+                        ;       CompuPro DISK 2 Equates:
+                        ;
+   00C8                 D2_PORT EQU     0C8h    ;Base port address
+   00C8                 D2_CNTL EQU     D2_PORT ;Control port
+   00C8                 D2_STAT EQU     D2_PORT ;Status port is same as control
+   00C9                 D2_DATA EQU     D2_PORT+1       ;Data port (I/O)
+                        ;
+                        ; Disk 2 Commands:
+   00C8                 D2_READ EQU     11001000b       ;Read data command
+   00D0                 D2_WRT  EQU     11010000b       ;Write data command
+   0006                 D2_TIME EQU     00000110b       ;Time out
+   0080                 D2_STRB EQU     10000000b       ;Drive strobe
+   0090                 D2_HEAD EQU     10010000b       ;Head register
+   0088                 D2_CYL  EQU     10001000b       ;Cylinder register
+   0098                 D2_SEC  EQU     10011000b       ;Sector register
+   00A0                 D2_SIN  EQU     10100000b       ;Step in
+   0080                 D2_SOU  EQU     10000000b       ;Step out
+   0004                 D2_RST  EQU     00000100b       ;Reset drive command bit
+   0080                 D2_ATTN EQU     10000000b       ;Acknowledge end of state machine sequence (interrupt)
+                        ;
+                        ; Disk 2 Status Bits:
+                        ;  ATTN EQU     10000000b       ;State machine activity bit
+   0040                 D2_TOUT EQU     01000000b       ;Timeout error bit
+   0020                 D2_CRC  EQU     00100000b       ;CRC error on data sector bit
+   0010                 D2_OVR  EQU     00010000b       ;Overrun on data transfer error bit
+   0008                 D2_NRDY EQU     00001000b       ;Drive not ready status bit
+   0004                 D2_SEKD EQU     00000100b       ;Seek done status bit
+   0002                 D2_WRTF EQU     00000010b       ;Write fault (negative true status)
+   0001                 D2_CYL0 EQU     00000001b       ;Cylinder 0 status bit (negative true status)
+                        ;
+                        ; Selector Channel:
+   00F0                 SELCHAN EQU     0F0h            ;Selector channel port
+CP/M ASM86 1.1  SOURCE: SC4.A86                                                                              PAGE   2
+
+
+   000A                 SELPRI  EQU     10                      ;Disk priority (as a DMA device, switches set)
+   0025                 SELBYT  EQU     2Fh-SELPRI      ;Selector channel command byte
+                        ;
+								CSEG
+                                ORG     0000H
+ 0000 DBFD                      ESC 1Fh,BP              ;db     0DBh,0FDh
+ 0002 33C0                      XOR AX,AX
+ 0004 8ED8                      MOV DS,AX
+                        L0006:
+ 0006 B502                      MOV CH,02h                              ;Set drive READY retry count
+                        L0008:
+ 0008 B080                      MOV AL,D2_STRB                  ;Select REG: DRIVE
+ 000A E6C8                      OUT D2_CNTL,AL                  ;Write to control port
+ 000C B010                      MOV AL,10H                              ;DRIVE=0
+ 000E E6C9                      OUT D2_DATA,AL                  ;Write data
+ 0010 E4C8                      IN AL,D2_STAT                   ;Read status
+ 0012 2488                      AND AL,D2_ATTN+D2_NRDY  ;BUSY* and NOT READY (Active low)
+ 0014 3C80                      CMP AL,D2_ATTN                  ;BUSY* cleared?
+ 0016 741B         0033         JE L0033                                ;Yes, Check track zero
+ 0018 FECD                      DEC CH                                  ;Loop count completed?
+ 001A 75EC         0008         JNE L0008                               ;No, try again
+                        ;
+                        ; Begin drive spin up time delay
+ 001C B9F401                    MOV CX,01F4h                    ;Set delay
+ 001F BB0600                    MOV BX,OFFSET L0006             ;ROM re-entry point
+                        L0022:
+ 0022 B0C0                      MOV AL,0C0h                             ;Set inner loop
+                        L0024:
+ 0024 49                        DEC CX                                  ;Waste some time
+ 0025 41                        INC CX                                  ;Waste more time
+ 0026 FEC8                      DEC AL                                  ;Inner loop completed?
+ 0028 75FA         0024         JNE L0024                               ;Nope
+ 002A 49                        DEC CX                                  ;Count delay
+ 002B 8AC1                      MOV AL,CL
+ 002D 0AC5                      OR AL,CH                                ;Delay done?
+ 002F 75F1         0022         JNE L0022                               ;Nope
+ 0031 FFE3                      JMP BX                                  ;Jump to ROM re-entry
+                        ;
+                        ; Drive READY, Issue DRIVE RESET command
+                        L0033:
+ 0033 B004                      MOV AL,D2_RST                   ;Select REG: RESET
+ 0035 E6C8                      OUT D2_CNTL,AL                  ;Write to control port
+ 0037 E4C8                      IN AL,D2_STAT                   ;Read status
+ 0039 2401                      AND AL,D2_CYL0                  ;TRACK0 (Active low)
+ 003B 7412         004F         JE L004F                                ;Yes, At track zero
+                        ;
+ 003D B084                      MOV AL,D2_SOU+D2_RST    ;Select REG:RESET + STEP Direction=OUT
+ 003F E6C8                      OUT D2_CNTL,AL                  ;Write to control port
+ 0041 B500                      MOV CH,00h                              ;Set STEP pulse counter
+                        L0043:
+ 0043 E4C9                      IN AL,D2_DATA                   ;Send STEP pulse
+ 0045 FECD                      DEC CH                                  ;Count STEP pulse
+ 0047 75FA         0043         JNE L0043                               ;Repeat until count=0
+CP/M ASM86 1.1  SOURCE: SC4.A86                                                                              PAGE   3
+
+
+                        ; Wait for stacked STEP's to complete
+                        L0049:
+ 0049 E4C8                      IN AL,D2_STAT                   ;Read status
+ 004B 2404                      AND AL,D2_SEKD                  ;Seek Done (Active low)
+ 004D 75FA         0049         JNE L0049                               ;No if status bit high
+                        ;
+                        ; Drive is at Track-0
+                        L004F:
+ 004F B50A                      MOV CH,0Ah                              ;Set READ data RETRY count
+                        ;
+                        ; Select DRIVE0,CYL=0,HEAD=0,SECTOR=0
+                        L0051:
+ 0051 B080                      MOV AL,D2_STRB                  ;Select REG: DRIVE
+ 0053 E6C8                      OUT D2_CNTL,AL                  ;Write to control port
+ 0055 B010                      MOV AL,10h                              ;Drive=0
+ 0057 E6C9                      OUT D2_DATA,AL                  ;Write data
+
+ 0059 B088                      MOV AL,D2_CYL                   ;Select REG: CYL
+ 005B E6C8                      OUT D2_CNTL,AL                  ;Write to control port
+ 005D 32C0                      XOR AL,AL                               ;CYL=0
+ 005F E6C9                      OUT D2_DATA,AL                  ;Write data
+
+ 0061 B090                      MOV AL,D2_HEAD                  ;Select REG: HEAD
+ 0063 E6C8                      OUT D2_CNTL,AL                  ;Write to control port
+ 0065 32C0                      XOR AL,AL                               ;HEAD=0
+ 0067 E6C9                      OUT D2_DATA,AL                  ;Write data
+
+ 0069 B098                      MOV AL,D2_SEC                   ;Select REG: SECTOR
+ 006B E6C8                      OUT D2_CNTL,AL                  ;Write to control port
+ 006D 32C0                      XOR AL,AL                               ;SECTOR=0
+ 006F E6C9                      OUT D2_DATA,AL                  ;Write data
+                        ;
+                        ; Program Selector Channel
+ 0071 BB0001                    MOV BX,0100h                    ;DMA Address of 2nd loader
+ 0074 E4F0                      IN AL,SELCHAN                   ;Hold Selector Channel
+ 0076 32C0                      XOR AL,AL                               ;Extended Address Byte: A23-A16
+ 0078 E6F0                      OUT SELCHAN,AL                  ;Write data
+ 007A 8AC7                      MOV AL,BH                               ;High Address Byte: A15-A8
+ 007C E6F0                      OUT SELCHAN,AL                  ;Write data
+ 007E 8AC3                      MOV AL,BL                               ;Low Address Byte: A7-A0
+ 0080 E6F0                      OUT SELCHAN,AL                  ;Write data
+ 0082 B0A5                      MOV AL,10100101B                ;Mode:1010  PRI:0101 (A5)
+ 0084 E6F0                      OUT SELCHAN,AL                  ;Write data
+                        ;
+                        ; Tell Disk-2 GO
+ 0086 B0C8                      MOV AL,D2_READ                  ;Command: Read Data
+ 0088 E6C8                      OUT D2_CNTL,AL                  ;Write to control port
+                        ;
+                        ; Wait for command compleation
+                        L008A:
+ 008A E4C8                      IN AL,D2_STAT                   ;Read status
+ 008C 2480                      AND AL,D2_ATTN                  ;Busy* (Active low)
+CP/M ASM86 1.1  SOURCE: SC4.A86                                                                              PAGE   4
+
+
+ 008E 75FA         008A         JNE L008A                               ;Wait for low
+                        ; Get ERROR status
+ 0090 E4C8                      IN AL,D2_STAT                   ;Read status
+ 0092 2450                      AND AL,D2_TOUT+D2_OVR   ;Check error bits: TIMEOUT and OVERRUN
+ 0094 7465         00FB         JE L00FB                                ;No read errors?
+                        ; READ Error detected
+ 0096 FECD                      DEC CH                                  ;Update retry counter
+ 0098 75B7         0051         JNE L0051                               ;OK to retry?
+ 009A E969FF       0006         JMP L0006                               ;No, ROM re-entry
+                        ;
+                        ; Set CONSOLE port flag, Start 2nd loader.
+                                ORG     00FBh
+                        L00FB:
+ 00FB B100                      MOV CL,Console                  ;Console device
+ 00FD A20000                    db      0A2h,00h,00h            ;MOV BYTE PTR [0000h],AL
+                        ;
+                        ; Fall into 2nd loader
+                                END
+
+
+END OF ASSEMBLY.  NUMBER OF ERRORS:   0.  USE FACTOR:  1%
