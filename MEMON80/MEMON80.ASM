@@ -3,7 +3,7 @@
 ; an 8080- or Z80-based system, supporting a variety of serial
 ; ports and floppy disk controllers.
 ;==============================================================
-VERSION	equ	0307h	;high byte = major revision number
+VERSION	equ	0308h	;high byte = major revision number
 					;low byte=2-digit minor version
 ;==============================================================
 ;
@@ -101,7 +101,8 @@ CPUMHz	equ	2		;Integer CPU speed in MHz
 ;Only used for CompuPro 85/88 for floppy disk booting
 ;And floppy controller code supports CPU switching.
 ;-------------------------------------------------------
-GO86	equ	TRUE	;For CompuPro 85/88 set TRUE
+CPU88	equ	FALSE	;For CompuPro 85/88 set TRUE
+GO86	equ	TRUE	;Requires ROM2K
 
 ;===========================----------------------
 ;= 2. Specify the ROM Size =
@@ -127,15 +128,15 @@ MEBASE	equ	0F800h	;Base address of Memon/80 code
 RAMCOD	equ	FALSE	;Set to true if executing from RAM in
 			;low memory (e.g. at 0100h for CP/M).
 
-RAMHNT	equ	FALSE
-;RAMHNT	equ	TRUE	;TRUE causes Memon to hunt for the
+;RAMHNT	equ	FALSE
+RAMHNT	equ	TRUE	;TRUE causes Memon to hunt for the
 			;highest contiguous RAM page for its
 			;stack, buffer, and variables.
 			;FALSE uses RAM just below RAMEND,
 			;and saves at least 26 bytes. Must be
 			;FALSE for I/O boards using interrupts.
 
-RAMEND	equ	0F7FFh
+RAMEND	equ	0F000h+7FFh
 ;RAMEND	equ	0EFFFh
 			;Last allowed RAM address for MEMON/80.
 			;(Ignored if RAMHNT equ TRUE.)
@@ -368,8 +369,8 @@ TWIOB1	equ	FALSE	;Wameco IOB-1's serial port
 ;
 ; Wameco IOB-1               Serial   04h     00h-05h
 ;-------------------------------------------------------------
-CBASE	equ	05Ch	;Console Port base address
-TBASE	equ	000h	;Transfer Port base address
+CBASE	equ	05Ch	;Console Port base address  (CSS1)
+TBASE	equ	000h	;Transfer Port base address (NONE)
 
 ;=====================================--------------------
 ;= 7. Set the Serial Port Baud Rates =
@@ -539,7 +540,7 @@ ENINTS	equ	FALSE
 ;==============================================================
 ;Memon/80 Commands (all values are in HEX)
 ;
-; BO <DRIVE>  {Some controllers require ROM2K}
+; BO [<DRIVE>]  {Some controllers require ROM2K}
 ;    Boot from floppy disk. The <DRIVE> option ( a number
 ;    between 0 and 3) is only available for the Fulcrum or Cromemco disk
 ;    controllers, because CDOS is one of the few S100 operating
@@ -644,10 +645,19 @@ ENINTS	equ	FALSE
 ;
 ; VE <SRC> <DST> <BCNT>
 ;    Verify <BCNT> bytes of memory, starting at <SRC> and <DST>
+;
+; XM [<OFST>] {Requires ROM2K}
+;    Load Binary file to memory from the Transfer Port using XMODEM.
+;    Optional load address <OFST>, Zero is default.
+;
 ;==============================================================
 ;REVISION HISTORY
+;
+;VERS. 3.08 by M Enkelis 08 Sept 2025
+;  Add BINARY (XModem) file transfer code.
+;
 ;VERS. 3.07 by M Enkelis 26 Sept 2023
-;  Add CompuPro DISK1A and DISK3 controller boot code.
+;  Add CompuPro DISK1A</B/C> and DISK3 controller boot code.
 ;VERS. 3.06 by M Enkelis 26 Sept 2022
 ;  Add Fulcrum Omnidisk controller boot code.
 ;  Add Compupro System Support-1 card.
@@ -6736,15 +6746,18 @@ RBRTRY:
  endif ;FULCRUM
 ; Switch from 8085 to 8088
 boot86:
- if FULCRUM AND NOT GO86
+ if NOT CPU88
 	jmp		CABORT			;Back to ROM
- endif ;FULCRUM AND NOT GO86
- if FULCRUM AND GO86
+ endif ;NOT CPU88
+ if CPU88 and (NOT GO86)
+ 	jmp		CABORT			;Back to ROM
+ endif ;CPU88 and (NOT GO86)
+ if CPU88 AND GO86
 	in		SWAP			;Start 8088
 	nop
 	nop						;Two NOP'S
 	pchl					;JMP <HL>
- endif ;FULCRUM AND GO86
+ endif ;CPU88 AND GO86
  if FULCRUM
 ;
 ; FAILURE READING BOOT SECTOR
@@ -8094,6 +8107,205 @@ DNRERR:	call	CILPRT
 	jmp	CABORT
 
  endif ;TARBL1 or TARBL2
+ 
+  if ROM2K
+;
+;*******************************************************
+;	XModem binary loader
+;XM [<OFST>] (XModem)
+;
+;Load an binary file from the Transfer Port into memory
+;AT the addresses specified in the optional
+;address offset <OFST>. Ends with file transfer, or if control-C
+;received on transfer port.
+;
+;On Entry:
+;  hl=offset (defaults to 0)
+;*******************************************************
+
+;  Transfer related equates
+
+SOH		EQU	1
+EOT		EQU	4
+ACK		EQU	6
+NAK		EQU	15H
+
+XMODEM:
+;  GOBBLE UP GARBAGE CHARS FROM THE LINE
+PURGE:
+	MVI  B,1			;times out after 1 second if no data
+	CALL RECV
+	jc   RECEIVE$FILE	;line is clear, go receive the file
+ if TPORT
+; Test for console abort
+	call KSTAT			;CHECK FOR CHR ON CONSOLE PORT
+	jz	 PURGE			;Nothing
+	call KDATA			;Read DATA
+	ani  7FH			;Mask bits
+ endif ;TPORT
+	cpi  CTRLC			;control-c to abort?
+	jnz	 PURGE			;No, Wait for packet
+	ret					;return to MAIN
+;
+;**************RECEIVE FILE****************
+;
+RECEIVE$FILE:
+	lxi		b,0			;B=Prv Block#, C=Curent Block#
+	push	h			;Save LOAD address onto stack
+	push	b			;Save Prv Block# onto stack
+; Tell REMOTE to send HEADER
+RECV$BEG:
+	MVI  A,NAK			;NAK block
+	CALL SEND
+; Wait for block header
+RECV$HDR:
+	MVI  B,3			;3 SEC TIMEOUT
+	CALL RECV
+	JNC  RECV$HDR$NOW	;NO TIMEOUT
+; Receive BLK/HDR error or timeout
+RECV$BLK$ERR:
+						;PURGE THE LINE OF INPUT CHARS
+	MVI  B,1			;1 SEC W/NO CHARS
+	CALL RECV
+	JC   RECV$BEG		;Send NAK
+;GOT CHAR - MUST BE SOH / EOT OR CTRL-C TO ABORT
+RECV$HDR$NOW:
+	CPI  SOH			;Start-OF-Header?
+	JZ   GOT$SOH		;yes
+	CPI  EOT			;End-OF-Transmission?
+	JZ   GOT$EOT		;yes
+	cpi  CTRLC			;control-c to abort?
+	jz	 ABORT			;yes
+	JMP  RECV$BLK$ERR	;no, keep looking
+; Receive Header Validation
+GOT$SOH:
+	MVI  B,1			;Wait 1 second for next char
+	CALL RECV
+	JC   RECV$BLK$ERR	;Timeout?
+	MOV  D,A			;D=BLK #
+	MVI  B,1
+	CALL RECV			;Get CMA'D BLK #
+	JC   RECV$BLK$ERR	;Timeout?
+	CMA					;Invert
+	CMP  D				;Good BLK #?
+	JNZ  RECV$BLK$ERR	;HDR is bad?
+;  Receive Block
+	pop	 b				;BC=BLK # from stack
+	pop  h				;HL= LOAD address from stack
+	push h				;Save LOAD address back to stack
+	mov  c,d			;Update current BLK #
+	push b				;Save BLK # on stack
+; At this point: HL=LOAD ADDRESS
+	MVI  C,0			;INIT CKSUM
+	MVI  E,80H			;SIZE OF block
+; Transfer BLK from remote to local
+RECV$CHAR:
+	MVI  B,1			;1 SEC TIMEOUT
+	CALL RECV			;Get char
+	JC   RECV$BLK$ERR	;No, NAK block
+	MOV  M,A			;Store char
+	INX  H				;Advance LOAD address ptr
+	DCR  E				;Done?
+	JNZ  RECV$CHAR		;Not yet
+; Verify received CHECKSUM
+	MOV  D,C			;Save computed CHECKSUM
+	MVI  B,1			;TIMEOUT
+	CALL RECV			;Get CHECKSUM
+	JC   RECV$BLK$ERR	;Timeout, NAK block
+	CMP  D				;Is CHECKSUM valid?
+	JNZ  RECV$BLK$ERR	;No, NAK block
+; Got a block, advance if = 1+PREV BLk #
+	pop  b				;Get BLK #
+	pop  d				;Put PREV LOAD address in DE
+	mov	 a,b			;Get prev BLK #
+	INR  A				;Calc next BLK #
+	CMP  C				;Match?
+	JNZ  DO$ACK			;No, was repeat of last sector
+; Retry last block
+	xchg				;Put PREV LOAD address in HL
+; Update LOAD address,prev BLK#
+DO$ACK:
+	mov  c,b			;Update prev BLK #
+	push h				;Put LOAD address on stack
+	push b				;Save next BLK#
+; ACK that valid block received
+	MVI  A,ACK			;ACK block
+	CALL SEND
+	JMP  RECV$HDR		;Get next block
+; Received EOT
+GOT$EOT:
+	MVI  A,ACK			;ACK the EOT
+	CALL SEND
+; DONE - CLOSE UP SHOP
+ABORT:
+	pop  b				;Cleanup
+	pop  h				; Stack
+	RET					;return to MAIN
+;
+; - - - - - - - - - - - - - - -
+; RECV CHAR ROUTINE
+; ENTRY:
+;   B=SECONDS TO WAIT
+;   C=CHECKSUM
+; EXIT:
+;   CARRY FLAG SET ON TIMEOUT
+;   C=UPDATED WITH CHAR IN A
+;-------------------------------------
+RECV:
+	PUSH D			;SAVE D,E
+MSEC:
+	lxi d,(159 shl 8)	;49 cycle loop, 6.272ms/wrap * 159 = 1 second
+MWTI:
+ if TPORT
+	CALL TPISTA		;WAIT FOR CHR ON TRANSFER PORT
+ else
+	CALL KSTAT		;WAIT FOR CHR ON CONSOLE PORT
+ endif ;TPORT
+	JNZ  GOT$CHAR	;GOT CHAR
+	DCR  E			;COUNT DOWN
+	JNZ  MWTI		;FOR TIMEOUT
+	DCR  D
+	JNZ  MWTI
+	DCR  B			;DCR # OF SECONDS
+	JNZ  MSEC
+; TIMED OUT RECEIVING
+	POP  D			;RESTORE D,E
+	STC				;CARRY SHOWS TIMEOUT
+	RET
+GOT$CHAR:
+ if TPORT
+	CALL TPIDAT		;Read DATA
+ endif	;TPORT
+ if not TPORT
+	CALL KDATA		;Read DATA
+ endif ;not TPORT
+	POP  D			;RESTORE DE
+	PUSH PSW		;CALC CHECKSUM
+	ADD  C
+	MOV  C,A
+	POP  PSW
+	ORA  A			;TURN OFF CARRY TO SHOW NO TIMEOUT
+	RET
+;
+; - - - - - - - - - - - - - - -
+; SEND CHAR ROUTINE
+; ENTRY:
+;   A=CHAR
+;   C=CHECKSUM
+;
+; EXIT:
+;   C=UPDATED WITH CHAR IN A
+;----------------------------------
+;
+SEND:
+	PUSH PSW		;CHECK IF MONITORING OUTPUT
+	ADD  C			;CALC CKSUM
+	MOV  C,A
+SENDW:
+	POP  PSW		;GET CHAR
+	JMP  TPOUT		;Write DATA
+ 
+ endif ;ROM2K
 
 ;========================
 ;= Memon/80 Subroutines =
@@ -9140,16 +9352,20 @@ GHELP:	call	CILPRT
 ;Transfer Port Commands
 
 	db 'HD a c',CR
+ 	db 'HL [o]',CR
  endif ;HELPC
+ 
+ if ROM2K and HELPC
+	db 'XM [o]'
+ endif ;ROM2K and HELPC
 
  if TPORT and HELPC
-	db 'HL [o]',CR
- endif ;TPORT and HELPC
-
+	db CR
+  endif ;TPORT and HELPC
  if (not TPORT) and HELPC
-	db 'HL [o]',CR+80h
+ 	db CR+80h
  endif ;(not TPORT) and HELPC
-
+ 
  if HELPC and TSBAUD
 	db 'TB 0-'
  endif ;HELPC and TSBAUD
@@ -9263,6 +9479,10 @@ SED	set	0
 SED	set	SECMD-CMDBAS
 	db	'S','E'+((SED/2) and 80h) ;Search
 	db	SED and 0FFh
+
+XMD	set	XMODEM-CMDBAS
+	db  'X','M'+((XMD/2) and 80h) ;XModem
+	db  XMD and 0FFh
  endif ;ROM2K
 
  if HELPC
@@ -9359,9 +9579,12 @@ CODEND	equ	$
 ERROR: code is larger than available EPROM space
  endif ;(not RAMCOD) and ((CODEND-MEBASE-1)/ROMSIZ)
 
- if (not ramcod) and GO86
- 	org 0FFFF0H
+; GO86 requires ROM2K.
+GOX86	equ	MEBASE+7F0H
+ if (GO86 and ROM2K) and (not ramcod)
+	org	GOX86
 	db	0EAH				;8088 JMP FAR ...
-	dw	0400H,0000H			;8088 ... DEST & CS [0400H in PAGE 0]
+	dw	0400H				;8088 ... DEST [0400H]
+	dw	0000H,0000H			;         CS   [PAGE 0]
  endif ;GO86
 	END
